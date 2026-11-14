@@ -124,7 +124,7 @@
         async function fetchCandles(interval) {
             document.getElementById('chart-status').innerText = "Загрузка свечей...";
             try {
-                const res = await fetch(`/api/candles?interval=${interval}`);
+                const res = await fetch(`${window.location.origin}/api/candles?interval=${interval}`);
                 const data = await res.json();
                 
                 const candleData = data.map(d => ({
@@ -167,7 +167,7 @@
 
             try {
                 // Передаем текущий таймфрейм на сервер (main.py)
-                const response = await fetch('/api/analyze', { 
+                const response = await fetch(`${window.location.origin}/api/analyze`, { 
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ interval: currentInterval })

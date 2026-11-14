@@ -39,7 +39,7 @@ async def handle_candles(request):
     interval = request.query.get('interval', '1h')
     try:
         async with aiohttp.ClientSession() as session:
-            url = f"https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval={interval}&limit=100"
+            url = f"https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval={interval}&limit=100"
             async with session.get(url) as response:
                 if response.status != 200:
                     return web.json_response({"error": "Binance error"}, status=500)
@@ -58,7 +58,7 @@ async def handle_analyze(request):
 
     try:
         async with aiohttp.ClientSession() as session:
-            url = f"https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval={interval}&limit=100"
+            url = f"https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval={interval}&limit=100"
             async with session.get(url) as response:
                 klines = await response.json()
 
