@@ -48,14 +48,13 @@
                     <span class="text-green-400 text-lg font-bold" id="current-price">$--,---.--</span>
                 </div>
             </div>
-            <!-- Кнопка быстрого создания уведомления -->
-            <button onclick="goToCreateAlert()" class="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center text-2xl border border-cyan-500/30 text-cyan-400">
+            <button onclick="goToCreateAlert()" class="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center text-2xl border border-cyan-500/30 text-cyan-400 shadow-[0_0_10px_rgba(0,240,255,0.2)]">
                 🔔
             </button>
         </div>
 
         <div class="flex mb-4">
-            <input type="text" id="coin-search" placeholder="Введите тикер (PEPE, TON, APT...)" class="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-cyan-500/30 focus:outline-none focus:border-cyan-500 uppercase placeholder-gray-500">
+            <input type="text" id="coin-search" placeholder="Введите тикер (PEPE, TON...)" class="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-cyan-500/30 focus:outline-none focus:border-cyan-500 uppercase placeholder-gray-500">
             <button onclick="searchCoin()" class="ml-2 bg-gradient-to-r from-cyan-500 to-blue-600 px-5 rounded-xl font-bold shadow-lg active:scale-95 transition">🔍</button>
         </div>
 
@@ -66,6 +65,7 @@
             <button onclick="changeCoin('XRP', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">XRP</button>
             <button onclick="changeCoin('DOGE', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">DOGE</button>
             <button onclick="changeCoin('TON', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">TON</button>
+            <button onclick="changeCoin('PEPE', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">PEPE</button>
         </div>
 
         <div class="neon-border rounded-3xl p-4 mb-6">
@@ -96,7 +96,6 @@
     <div id="view-alerts" class="tab-content">
         <h1 class="text-2xl font-bold neon-text mb-6">🔔 Мои Оповещения</h1>
         
-        <!-- Форма создания -->
         <div class="neon-border rounded-3xl p-5 mb-6">
             <h2 class="text-sm font-bold text-cyan-300 mb-3">Создать новое</h2>
             <div class="flex space-x-2 mb-3">
@@ -112,7 +111,6 @@
             <button onclick="createAlert()" class="w-full bg-cyan-500 text-black font-bold py-3 rounded-xl active:scale-95 transition">Установить уведомление</button>
         </div>
 
-        <!-- Список активных -->
         <h2 class="text-sm font-bold text-gray-400 mb-3">Активные уведомления</h2>
         <div id="alerts-list" class="space-y-3">
             <div class="text-center text-gray-500">Загрузка...</div>
@@ -254,7 +252,6 @@
 
         // --- УВЕДОМЛЕНИЯ ---
         function goToCreateAlert() {
-            // При переходе на вкладку уведомлений, автоматически подставляем текущую монету
             document.getElementById('alert-symbol').value = currentSymbol;
             switchTab('alerts', document.querySelectorAll('.nav-item')[1]);
         }
@@ -273,12 +270,16 @@
                     body: JSON.stringify({ user_id: userId, symbol: symbol, target_price: price, condition: condition })
                 });
                 const data = await res.json();
-                if (data.error) return alert("Ошибка: " + data.error);
+                
+                if (data.error) {
+                    tg.showAlert("❌ " + data.error);
+                    return;
+                }
                 
                 if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
                 document.getElementById('alert-price').value = '';
                 loadAlerts();
-            } catch(e) { alert("Ошибка сети"); }
+            } catch(e) { tg.showAlert("Ошибка сети"); }
         }
 
         async function loadAlerts() {

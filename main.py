@@ -19,7 +19,7 @@ dp = Dispatcher()
 
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    print("✅ База данных подключена")
+    print("✅ База данных Supabase подключена")
 except Exception as e:
     supabase = None
     print(f"❌ Ошибка БД: {e}")
@@ -54,13 +54,12 @@ def calculate_sma(prices, period=20):
     if len(prices) < period: return prices[-1] if prices else 0
     return sum(prices[-period:]) / period
 
-# --- ФОНОВАЯ ЗАДАЧА: СКАНЕР ЦЕН ---
+# --- ФОНОВЫЙ СКАНЕР УВЕДОМЛЕНИЙ ---
 async def check_alerts():
     print("🚀 Сканер уведомлений запущен...")
     while True:
         if supabase:
             try:
-                # Достаем все активные уведомления
                 res = supabase.table("alerts").select("*").eq("is_active", True).execute()
                 alerts = res.data
                 
@@ -79,15 +78,18 @@ async def check_alerts():
                                     
                                     target = float(alert['target_price'])
                                     condition = alert['condition']
+                                    # Если last_price пустой, берем текущую цену
+                                    last_price = float(alert.get('last_price') or current_price) 
                                     
                                     triggered = False
-                                    if condition == 'above' and current_price >= target:
+                                    
+                                    # ЛОГИКА ПЕРЕСЕЧЕНИЯ
+                                    if condition == 'above' and last_price < target and current_price >= target:
                                         triggered = True
-                                    elif condition == 'below' and current_price <= target:
+                                    elif condition == 'below' and last_price > target and current_price <= target:
                                         triggered = True
                                         
                                     if triggered:
-                                        # Отправляем сообщение пользователю
                                         text = (
                                             f"🔔 <b>СРАБОТАЛО УВЕДОМЛЕНИЕ!</b>\n\n"
                                             f"Монета: <b>{sym}</b>\n"
@@ -95,13 +97,15 @@ async def check_alerts():
                                             f"Ваша цель: {condition} ${format_price(target)}"
                                         )
                                         await bot.send_message(chat_id=alert['user_id'], text=text, parse_mode="HTML")
-                                        
-                                        # Отключаем уведомление, чтобы оно не спамило
+                                        # Отключаем после срабатывания
                                         supabase.table("alerts").update({"is_active": False}).eq("id", alert['id']).execute()
+                                    else:
+                                        # Обновляем last_price для следующей итерации
+                                        supabase.table("alerts").update({"last_price": current_price}).eq("id", alert['id']).execute()
             except Exception as e:
                 print(f"Ошибка сканера: {e}")
                 
-        await asyncio.sleep(30) # Проверяем каждые 30 секунд
+        await asyncio.sleep(30)
 
 # --- ВЕБ-СЕРВЕР ---
 async def handle_index(request):
@@ -171,19 +175,38 @@ async def handle_get_alerts(request):
         res = supabase.table("alerts").select("*").eq("user_id", int(user_id)).eq("is_active", True).execute()
         return web.json_response(res.data)
     except Exception as e:
-        print(f"Ошибка БД (get_alerts): {e}")
         return web.json_response([])
 
 async def handle_create_alert(request):
     if not supabase: return web.json_response({"error": "База не подключена"}, status=500)
     data = await request.json()
+    
+    symbol = data.get('symbol', '').upper()
+    target_price = float(data.get('target_price'))
+    condition = data.get('condition')
+    user_id = int(data.get('user_id'))
+
+    # Получаем текущую цену, чтобы запомнить её при создании
+    pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
+    current_price = 0
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = f"https://api.kraken.com/0/public/Ticker?pair={pair}"
+            async with session.get(url) as response:
+                tick_data = await response.json()
+                if not tick_data.get("error"):
+                    result_key = [k for k in tick_data["result"].keys() if k != "last"][0]
+                    current_price = float(tick_data["result"][result_key]["c"][0])
+    except: pass
+
     try:
         supabase.table("alerts").insert({
-            "user_id": int(data.get('user_id')),
-            "symbol": data.get('symbol').upper(),
-            "target_price": float(data.get('target_price')),
-            "condition": data.get('condition'),
-            "is_active": True
+            "user_id": user_id,
+            "symbol": symbol,
+            "target_price": target_price,
+            "condition": condition,
+            "is_active": True,
+            "last_price": current_price 
         }).execute()
         return web.json_response({"status": "ok"})
     except Exception as e:
@@ -219,11 +242,10 @@ async def cmd_start(message: types.Message):
     base_url = os.getenv("WEBAPP_URL", "https://google.com")
     web_app_url = f"{base_url}?v={int(time.time())}"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🚀 Открыть Терминал", web_app=WebAppInfo(url=web_app_url))]])
-    await message.answer("Терминал обновлен! Теперь доступны Оповещения (Price Alerts).", reply_markup=keyboard)
+    await message.answer("Приложение обновлено! Логика уведомлений исправлена.", reply_markup=keyboard)
 
 async def main():
     await start_web_server()
-    # Запускаем фоновый сканер цен
     asyncio.create_task(check_alerts())
     await dp.start_polling(bot)
 
