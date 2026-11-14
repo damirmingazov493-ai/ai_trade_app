@@ -5,220 +5,71 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AI Trading Terminal</title>
     
-    <!-- Скрипт Телеграма -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
-    <!-- Профессиональная библиотека графиков -->
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-    
-    <!-- Tailwind CSS для верстки -->
+    <!-- Более надежный CDN для графиков -->
+    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
-        body { 
-            background: radial-gradient(circle at top, #0a1128 0%, #030614 100%); 
-            color: #ffffff; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-            -webkit-tap-highlight-color: transparent;
-        }
-        .neon-border { 
-            border: 1px solid rgba(0, 240, 255, 0.3);
-            box-shadow: 0 0 15px rgba(0, 240, 255, 0.1), inset 0 0 10px rgba(0, 240, 255, 0.05);
-            background: rgba(10, 17, 40, 0.6); 
-            backdrop-filter: blur(12px); 
-        }
-        .neon-text { 
-            color: #00f0ff; 
-            text-shadow: 0 0 8px rgba(0, 240, 255, 0.5); 
-        }
-        
-        /* Анимация пульсации для ИИ */
-        @keyframes pulse-glow {
-            0% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(0, 240, 255, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0); }
-        }
-        .ai-pulse { animation: pulse-glow 2s infinite; }
-        
-        /* Кнопки таймфреймов */
-        .time-btn { transition: all 0.2s; }
-        .time-btn.active { 
-            background-color: #00f0ff; 
-            color: #030614; 
-            box-shadow: 0 0 10px rgba(0, 240, 255, 0.5); 
-            font-weight: bold; 
-        }
-        .time-btn:not(.active) { 
-            background-color: rgba(0, 240, 255, 0.1); 
-            color: #00f0ff; 
-        }
-        
+        body { background: radial-gradient(circle at top, #0a1128 0%, #030614 100%); color: #ffffff; font-family: sans-serif; }
+        .neon-border { border: 1px solid rgba(0, 240, 255, 0.3); box-shadow: 0 0 15px rgba(0, 240, 255, 0.1); background: rgba(10, 17, 40, 0.6); }
         #chart-container { width: 100%; height: 300px; }
     </style>
 </head>
-<body class="p-4 pb-10">
+<body class="p-4">
 
-    <!-- Шапка -->
-    <div class="flex justify-between items-center mb-6">
-        <div>
-            <h1 class="text-3xl font-extrabold tracking-tight neon-text">BTC / USDT</h1>
-            <div class="flex items-center space-x-2 mt-1">
-                <span class="text-green-400 text-lg font-bold" id="current-price">$--,---.--</span>
-                <span class="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-semibold">Live</span>
-            </div>
-        </div>
-        <div class="w-12 h-12 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-full flex items-center justify-center font-bold text-lg shadow-lg border-2 border-cyan-400/30">
-            <span id="user-initial">U</span>
-        </div>
-    </div>
+    <h1 class="text-3xl font-extrabold neon-text mb-4">ТЕСТ ГРАФИКА</h1>
 
-    <!-- Блок с графиком и таймфреймами -->
     <div class="neon-border rounded-3xl p-4 mb-6">
-        <div class="flex justify-between items-center mb-4">
-            <div class="flex space-x-1 p-1 rounded-xl">
-                <button onclick="changeTimeframe('1h', this)" class="time-btn px-4 py-1.5 text-xs font-semibold rounded-lg active">1ч</button>
-                <button onclick="changeTimeframe('4h', this)" class="time-btn px-4 py-1.5 text-xs font-semibold rounded-lg">4ч</button>
-                <button onclick="changeTimeframe('1d', this)" class="time-btn px-4 py-1.5 text-xs font-semibold rounded-lg">1д</button>
-            </div>
-            <span class="text-xs text-cyan-300/50" id="chart-status">Загрузка...</span>
-        </div>
-        
-        <!-- Контейнер для графика -->
+        <div class="text-xs text-cyan-300 mb-2" id="chart-status">Инициализация...</div>
         <div id="chart-container" class="rounded-xl overflow-hidden"></div>
     </div>
 
-    <!-- Блок с ИИ -->
-    <div class="neon-border rounded-3xl p-5 mb-6">
-        <div class="flex items-center space-x-2 mb-3">
-            <div class="w-2.5 h-2.5 bg-cyan-400 rounded-full ai-pulse"></div>
-            <h2 class="text-lg font-bold neon-text">AI Аналитика (Real-time)</h2>
-        </div>
-        <div class="text-sm text-gray-300 mb-4 leading-relaxed" id="ai-response">
-            Нажми кнопку ниже, чтобы сервер проанализировал текущий график (RSI и MA) через API Bybit.
-        </div>
-        
-        <button onclick="analyzeMarket()" id="analyze-btn" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-3.5 px-4 rounded-2xl transition duration-300 transform active:scale-95 shadow-[0_0_15px_rgba(0,240,255,0.4)]">
-            🧠 Запустить анализ
-        </button>
-    </div>
-
     <script>
-        // --- 1. ИНИЦИАЛИЗАЦИЯ TELEGRAM ---
         const tg = window.Telegram.WebApp;
         tg.expand(); 
         tg.ready(); 
 
-        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-            const user = tg.initDataUnsafe.user;
-            document.getElementById('user-initial').innerText = user.first_name.charAt(0).toUpperCase();
-        }
+        const statusEl = document.getElementById('chart-status');
+        statusEl.innerText = "Библиотека загружена. Рисуем...";
 
-        // --- 2. НАСТРОЙКА ГРАФИКА TRADINGVIEW ---
-        const chartContainer = document.getElementById('chart-container');
-        const chart = LightweightCharts.createChart(chartContainer, {
-            layout: {
-                background: { type: 'solid', color: 'transparent' },
-                textColor: '#00f0ff',
-            },
-            grid: {
-                vertLines: { color: 'rgba(0, 240, 255, 0.05)' },
-                horzLines: { color: 'rgba(0, 240, 255, 0.05)' },
-            },
-            timeScale: { borderColor: 'rgba(0, 240, 255, 0.2)' },
-            rightPriceScale: { borderColor: 'rgba(0, 240, 255, 0.2)' },
-            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-        });
+        try {
+            const chartContainer = document.getElementById('chart-container');
+            const chart = LightweightCharts.createChart(chartContainer, {
+                width: chartContainer.clientWidth,
+                height: 300,
+                layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#00f0ff' },
+                grid: { vertLines: { color: 'rgba(0, 240, 255, 0.05)' }, horzLines: { color: 'rgba(0, 240, 255, 0.05)' } },
+            });
 
-        const candleSeries = chart.addCandlestickSeries({
-            upColor: '#00ff88',
-            downColor: '#ff3366',
-            borderVisible: false,
-            wickUpColor: '#00ff88',
-            wickDownColor: '#ff3366',
-        });
+            const candleSeries = chart.addCandlestickSeries({
+                upColor: '#00ff88', downColor: '#ff3366', borderVisible: false, wickUpColor: '#00ff88', wickDownColor: '#ff3366',
+            });
 
-        // --- 3. ЗАГРУЗКА ДАННЫХ С СЕРВЕРА (Bybit) ---
-        let currentInterval = '60'; // По умолчанию 1 час (Bybit: 60)
-
-        async function fetchCandles(interval) {
-            document.getElementById('chart-status').innerText = "Загрузка свечей...";
-            try {
-                // Обращаемся к нашему бэкенду, который сам запросит данные у Bybit
-                const res = await fetch(`${window.location.origin}/api/candles?interval=${interval}`);
-                const data = await res.json();
+            // ГЕНЕРИРУЕМ 50 ТЕСТОВЫХ СВЕЧЕЙ ПРЯМО В БРАУЗЕРЕ
+            const mockData = [];
+            let basePrice = 64000;
+            let time = Math.floor(Date.now() / 1000) - 50 * 3600; // 50 часов назад
+            
+            for (let i = 0; i < 50; i++) {
+                let open = basePrice;
+                let close = open + (Math.random() - 0.5) * 1000;
+                let high = Math.max(open, close) + Math.random() * 500;
+                let low = Math.min(open, close) - Math.random() * 500;
                 
-                if (data.error) {
-                    document.getElementById('chart-status').innerText = `Ошибка: ${data.error}`;
-                    return;
-                }
-
-                // Ставим свечи на график
-                candleSeries.setData(data);
-                document.getElementById('chart-status').innerText = `Обновлено`;
-
-                // Обновляем текущую цену на экране
-                if (data.length > 0) {
-                    const lastCandle = data[data.length - 1];
-                    document.getElementById('current-price').innerText = `$${lastCandle.close.toLocaleString()}`;
-                }
-            } catch (error) {
-                document.getElementById('chart-status').innerText = "Ошибка сети";
+                mockData.push({ time: time, open: open, high: high, low: low, close: close });
+                time += 3600; // +1 час
+                basePrice = close;
             }
+
+            candleSeries.setData(mockData);
+            statusEl.innerText = "✅ График успешно отрисован (тест)";
+            statusEl.className = "text-xs text-green-400 mb-2";
+
+        } catch (error) {
+            statusEl.innerText = "❌ ОШИБКА БИБЛИОТЕКИ: " + error.message;
+            statusEl.className = "text-xs text-red-500 mb-2 font-bold";
         }
-
-        // --- 4. ПЕРЕКЛЮЧЕНИЕ ТАЙМФРЕЙМОВ ---
-        function changeTimeframe(interval, btn) {
-            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            
-            // Маппинг: 1ч -> 60, 4ч -> 240, 1д -> D (формат Bybit)
-            let bybitInterval = interval;
-            if (interval === '1h') bybitInterval = '60';
-            if (interval === '4h') bybitInterval = '240';
-            if (interval === '1d') bybitInterval = 'D';
-            
-            currentInterval = bybitInterval;
-            if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
-            
-            fetchCandles(bybitInterval);
-        }
-
-        // --- 5. ОТПРАВКА ЗАПРОСА НА СЕРВЕР ДЛЯ АНАЛИЗА ---
-        async function analyzeMarket() {
-            const btn = document.getElementById('analyze-btn');
-            const responseDiv = document.getElementById('ai-response');
-            
-            btn.innerText = "⏳ Анализируем...";
-            btn.classList.add('opacity-70');
-            responseDiv.innerHTML = "<span class='animate-pulse text-cyan-300'>Сервер запрашивает данные Bybit и считает индикаторы...</span>";
-
-            try {
-                const response = await fetch(`${window.location.origin}/api/analyze`, { 
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ interval: currentInterval })
-                });
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    responseDiv.innerHTML = `❌ Ошибка: ${data.error}`;
-                } else {
-                    responseDiv.innerHTML = data.analysis;
-                }
-                
-                if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-
-            } catch (error) {
-                responseDiv.innerHTML = "❌ Ошибка сети. Не удалось связаться с сервером.";
-            } finally {
-                btn.innerText = "🧠 Запустить анализ";
-                btn.classList.remove('opacity-70');
-            }
-        }
-
-        // Инициализация графика при загрузке страницы
-        fetchCandles(currentInterval);
     </script>
 </body>
 </html>
