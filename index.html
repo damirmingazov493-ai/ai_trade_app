@@ -25,7 +25,6 @@
         
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        
         #chart-container { width: 100%; height: 300px; }
         
         .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(10, 17, 40, 0.95); backdrop-filter: blur(10px); border-top: 1px solid rgba(0, 240, 255, 0.2); display: flex; justify-content: space-around; padding: 10px 0; z-index: 50; }
@@ -47,11 +46,11 @@
                 <h1 class="text-3xl font-extrabold tracking-tight neon-text" id="header-symbol">BTC / USD</h1>
                 <div class="flex items-center space-x-2 mt-1">
                     <span class="text-green-400 text-lg font-bold" id="current-price">$--,---.--</span>
-                    <span class="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-semibold">Live</span>
                 </div>
             </div>
-            <button onclick="toggleFavorite()" id="fav-btn" class="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center text-2xl border border-cyan-500/30">
-                ☆
+            <!-- Кнопка быстрого создания уведомления -->
+            <button onclick="goToCreateAlert()" class="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center text-2xl border border-cyan-500/30 text-cyan-400">
+                🔔
             </button>
         </div>
 
@@ -60,7 +59,6 @@
             <button onclick="searchCoin()" class="ml-2 bg-gradient-to-r from-cyan-500 to-blue-600 px-5 rounded-xl font-bold shadow-lg active:scale-95 transition">🔍</button>
         </div>
 
-        <!-- ВОЗВРАЩАЕМ ВСЕ КНОПКИ -->
         <div class="flex space-x-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
             <button onclick="changeCoin('BTC', this)" class="coin-btn active px-4 py-2 rounded-xl text-sm whitespace-nowrap">BTC</button>
             <button onclick="changeCoin('ETH', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">ETH</button>
@@ -68,8 +66,6 @@
             <button onclick="changeCoin('XRP', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">XRP</button>
             <button onclick="changeCoin('DOGE', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">DOGE</button>
             <button onclick="changeCoin('TON', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">TON</button>
-            <button onclick="changeCoin('ADA', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">ADA</button>
-            <button onclick="changeCoin('PEPE', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">PEPE</button>
         </div>
 
         <div class="neon-border rounded-3xl p-4 mb-6">
@@ -96,11 +92,30 @@
         </div>
     </div>
 
-    <!-- ================= ВКЛАДКА 2: ИЗБРАННОЕ ================= -->
-    <div id="view-watchlist" class="tab-content">
-        <h1 class="text-2xl font-bold neon-text mb-6">⭐ Мой Вотчлист</h1>
-        <div id="watchlist-container" class="space-y-3">
-            <div class="text-center text-gray-500 mt-10">Загрузка...</div>
+    <!-- ================= ВКЛАДКА 2: ОПОВЕЩЕНИЯ ================= -->
+    <div id="view-alerts" class="tab-content">
+        <h1 class="text-2xl font-bold neon-text mb-6">🔔 Мои Оповещения</h1>
+        
+        <!-- Форма создания -->
+        <div class="neon-border rounded-3xl p-5 mb-6">
+            <h2 class="text-sm font-bold text-cyan-300 mb-3">Создать новое</h2>
+            <div class="flex space-x-2 mb-3">
+                <input type="text" id="alert-symbol" value="BTC" class="w-1/3 bg-gray-800 text-white rounded-xl px-3 py-2 border border-cyan-500/30 uppercase text-center font-bold">
+                <input type="number" id="alert-price" placeholder="Цена" class="w-2/3 bg-gray-800 text-white rounded-xl px-3 py-2 border border-cyan-500/30">
+            </div>
+            <div class="flex space-x-2 mb-4">
+                <select id="alert-condition" class="w-full bg-gray-800 text-white rounded-xl px-3 py-2 border border-cyan-500/30 appearance-none">
+                    <option value="above">📈 Цена поднимется ВЫШЕ</option>
+                    <option value="below">📉 Цена опустится НИЖЕ</option>
+                </select>
+            </div>
+            <button onclick="createAlert()" class="w-full bg-cyan-500 text-black font-bold py-3 rounded-xl active:scale-95 transition">Установить уведомление</button>
+        </div>
+
+        <!-- Список активных -->
+        <h2 class="text-sm font-bold text-gray-400 mb-3">Активные уведомления</h2>
+        <div id="alerts-list" class="space-y-3">
+            <div class="text-center text-gray-500">Загрузка...</div>
         </div>
     </div>
 
@@ -109,20 +124,13 @@
         <h1 class="text-2xl font-bold neon-text mb-6">🛠 Инструменты анализа</h1>
         <div class="neon-border rounded-3xl p-5 mb-4">
             <h2 class="text-lg font-bold text-white mb-2">Сводка по <span id="tools-symbol">BTC</span> (1ч)</h2>
-            <p class="text-sm text-gray-400 mb-4">Анализ основан на RSI и скользящих средних.</p>
             <div class="flex items-center justify-between bg-black/30 p-4 rounded-xl mb-3">
                 <span class="text-gray-300">Общий сигнал:</span>
                 <span class="text-xl font-bold text-green-400" id="tool-signal">Анализ...</span>
             </div>
             <div class="grid grid-cols-2 gap-3 text-sm">
-                <div class="bg-gray-800 p-3 rounded-lg">
-                    <div class="text-gray-400 mb-1">RSI (14)</div>
-                    <div class="font-bold text-white" id="tool-rsi">-</div>
-                </div>
-                <div class="bg-gray-800 p-3 rounded-lg">
-                    <div class="text-gray-400 mb-1">Тренд (MA20)</div>
-                    <div class="font-bold text-white" id="tool-ma">-</div>
-                </div>
+                <div class="bg-gray-800 p-3 rounded-lg"><div class="text-gray-400 mb-1">RSI (14)</div><div class="font-bold text-white" id="tool-rsi">-</div></div>
+                <div class="bg-gray-800 p-3 rounded-lg"><div class="text-gray-400 mb-1">Тренд (MA20)</div><div class="font-bold text-white" id="tool-ma">-</div></div>
             </div>
         </div>
     </div>
@@ -132,8 +140,8 @@
         <div class="nav-item active" onclick="switchTab('terminal', this)">
             <span class="nav-icon">📈</span><span>Терминал</span>
         </div>
-        <div class="nav-item" onclick="switchTab('watchlist', this)">
-            <span class="nav-icon">⭐</span><span>Избранное</span>
+        <div class="nav-item" onclick="switchTab('alerts', this)">
+            <span class="nav-icon">🔔</span><span>Оповещения</span>
         </div>
         <div class="nav-item" onclick="switchTab('tools', this)">
             <span class="nav-icon">🛠</span><span>Инструменты</span>
@@ -143,7 +151,11 @@
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand(); tg.ready(); 
-        const userId = tg.initDataUnsafe?.user?.id || 0; 
+        
+        let userId = 0; 
+        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            userId = tg.initDataUnsafe.user.id;
+        }
 
         function switchTab(tabId, navElement) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -152,10 +164,11 @@
             navElement.classList.add('active');
             if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
             
-            if (tabId === 'watchlist') loadWatchlist();
+            if (tabId === 'alerts') loadAlerts();
             if (tabId === 'tools') loadToolsData();
         }
 
+        // --- ГРАФИК ---
         const chartContainer = document.getElementById('chart-container');
         const chart = LightweightCharts.createChart(chartContainer, {
             width: chartContainer.clientWidth, height: 300,
@@ -168,54 +181,40 @@
 
         let currentInterval = '60'; 
         let currentSymbol = 'BTC';
-        let favorites = []; 
 
         async function fetchCandles(interval, symbol) {
             document.getElementById('chart-status').innerText = "Загрузка...";
             try {
                 const res = await fetch(`${window.location.origin}/api/candles?interval=${interval}&symbol=${symbol}`);
                 const data = await res.json();
-                
                 if (data.error) { 
-                    document.getElementById('chart-status').innerText = `Ошибка: ${data.error}`; 
-                    candleSeries.setData([]); // ОЧИЩАЕМ ГРАФИК ПРИ ОШИБКЕ
-                    document.getElementById('current-price').innerText = `$0.00`;
-                    return; 
+                    document.getElementById('chart-status').innerText = `Ошибка`; 
+                    candleSeries.setData([]); return; 
                 }
-
                 const lastPrice = data.length > 0 ? data[data.length - 1].close : 0;
-                
                 let precision = lastPrice < 0.0001 ? 8 : lastPrice < 0.01 ? 6 : lastPrice < 1 ? 4 : 2;
                 let minMove = lastPrice < 0.0001 ? 0.00000001 : lastPrice < 0.01 ? 0.000001 : lastPrice < 1 ? 0.0001 : 0.01;
 
                 candleSeries.applyOptions({ priceFormat: { type: 'price', precision, minMove } });
                 candleSeries.setData(data);
-                
                 chart.priceScale('right').applyOptions({ autoScale: true });
                 chart.timeScale().fitContent();
                 
                 document.getElementById('chart-status').innerText = `Обновлено`;
                 document.getElementById('current-price').innerText = `$${lastPrice.toFixed(precision).toLocaleString()}`;
-                updateFavoriteButton();
-            } catch (error) { 
-                document.getElementById('chart-status').innerText = "Ошибка сети"; 
-            }
+            } catch (error) { document.getElementById('chart-status').innerText = "Ошибка"; }
         }
 
         function searchCoin() {
-            const input = document.getElementById('coin-search');
-            const symbol = input.value.trim().toUpperCase();
+            const symbol = document.getElementById('coin-search').value.trim().toUpperCase();
             if (symbol) {
                 document.querySelectorAll('.coin-btn').forEach(b => b.classList.remove('active'));
                 updateUIForCoin(symbol);
-                input.value = ''; 
-                input.blur(); 
+                document.getElementById('coin-search').value = ''; 
+                document.getElementById('coin-search').blur(); 
             }
         }
-
-        document.getElementById('coin-search').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') searchCoin();
-        });
+        document.getElementById('coin-search').addEventListener('keypress', (e) => { if (e.key === 'Enter') searchCoin(); });
 
         function changeCoin(symbol, btn) {
             if(btn) {
@@ -248,79 +247,73 @@
             try {
                 const response = await fetch(`${window.location.origin}/api/analyze?interval=${currentInterval}&symbol=${currentSymbol}`);
                 const data = await response.json();
-                responseDiv.innerHTML = data.error ? `❌ Ошибка: ${data.error}` : data.analysis;
+                responseDiv.innerHTML = data.error ? `❌ Ошибка` : data.analysis;
             } catch (error) { responseDiv.innerHTML = "❌ Ошибка сети"; } 
             finally { btn.innerText = "🧠 Запустить анализ"; btn.classList.remove('opacity-70'); }
         }
 
-        // --- ИЗБРАННОЕ ---
-        async function loadFavorites() {
-            if (!userId) return;
-            try {
-                const res = await fetch(`${window.location.origin}/api/favorites?user_id=${userId}`);
-                favorites = await res.json();
-                updateFavoriteButton();
-            } catch(e) {}
+        // --- УВЕДОМЛЕНИЯ ---
+        function goToCreateAlert() {
+            // При переходе на вкладку уведомлений, автоматически подставляем текущую монету
+            document.getElementById('alert-symbol').value = currentSymbol;
+            switchTab('alerts', document.querySelectorAll('.nav-item')[1]);
         }
 
-        function updateFavoriteButton() {
-            const btn = document.getElementById('fav-btn');
-            if (favorites.includes(currentSymbol)) {
-                btn.innerHTML = "★"; btn.classList.add('text-yellow-400'); btn.classList.remove('text-white');
-            } else {
-                btn.innerHTML = "☆"; btn.classList.remove('text-yellow-400'); btn.classList.add('text-white');
-            }
-        }
+        async function createAlert() {
+            if (!userId) return alert("Ошибка Telegram ID");
+            const symbol = document.getElementById('alert-symbol').value.trim().toUpperCase();
+            const price = parseFloat(document.getElementById('alert-price').value);
+            const condition = document.getElementById('alert-condition').value;
 
-        async function toggleFavorite() {
-            if (!userId) return alert("Ошибка: нет ID пользователя");
-            const action = favorites.includes(currentSymbol) ? 'remove' : 'add';
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-            
+            if (!symbol || isNaN(price)) return alert("Заполните все поля!");
+
             try {
-                await fetch(`${window.location.origin}/api/favorites`, {
+                const res = await fetch(`${window.location.origin}/api/alerts`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId, symbol: currentSymbol, action: action })
+                    body: JSON.stringify({ user_id: userId, symbol: symbol, target_price: price, condition: condition })
                 });
-                if (action === 'add') favorites.push(currentSymbol);
-                else favorites = favorites.filter(s => s !== currentSymbol);
-                updateFavoriteButton();
-            } catch(e) { alert("Ошибка сохранения"); }
+                const data = await res.json();
+                if (data.error) return alert("Ошибка: " + data.error);
+                
+                if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                document.getElementById('alert-price').value = '';
+                loadAlerts();
+            } catch(e) { alert("Ошибка сети"); }
         }
 
-        async function loadWatchlist() {
-            const container = document.getElementById('watchlist-container');
-            if (favorites.length === 0) {
-                container.innerHTML = `<div class="text-center text-gray-500 mt-10">Тут пусто. Добавь монеты в избранное на вкладке Терминал (нажми на звездочку).</div>`;
-                return;
-            }
-            container.innerHTML = `<div class="text-center text-gray-500 mb-4 animate-pulse">Обновление...</div>`;
+        async function loadAlerts() {
+            const list = document.getElementById('alerts-list');
+            if (!userId) { list.innerHTML = "Нет ID пользователя"; return; }
             
             try {
-                const res = await fetch(`${window.location.origin}/api/tickers?symbols=${favorites.join(',')}`);
-                const data = await res.json();
-                container.innerHTML = data.map(coin => {
-                    const isPositive = coin.change >= 0;
-                    const color = isPositive ? 'text-green-400' : 'text-red-400';
-                    const sign = isPositive ? '+' : '';
+                const res = await fetch(`${window.location.origin}/api/alerts?user_id=${userId}`);
+                const alerts = await res.json();
+                
+                if (alerts.length === 0) {
+                    list.innerHTML = `<div class="text-center text-gray-500">У вас пока нет активных уведомлений</div>`;
+                    return;
+                }
+
+                list.innerHTML = alerts.map(a => {
+                    const condText = a.condition === 'above' ? '📈 Выше' : '📉 Ниже';
                     return `
-                    <div onclick="goToCoin('${coin.symbol}')" class="neon-border rounded-2xl p-4 flex justify-between items-center cursor-pointer active:scale-95 transition">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center font-bold text-cyan-400">${coin.symbol[0]}</div>
-                            <div class="font-bold text-lg">${coin.symbol}</div>
+                    <div class="neon-border rounded-2xl p-4 flex justify-between items-center mb-3">
+                        <div>
+                            <div class="font-bold text-lg text-white">${a.symbol}</div>
+                            <div class="text-sm text-gray-400">${condText} $${a.target_price}</div>
                         </div>
-                        <div class="text-right">
-                            <div class="font-bold text-white">$${coin.price.toLocaleString()}</div>
-                            <div class="${color} text-sm font-semibold">${sign}${coin.change.toFixed(2)}%</div>
-                        </div>
+                        <button onclick="deleteAlert(${a.id})" class="bg-red-500/20 text-red-400 px-3 py-2 rounded-lg text-sm font-bold active:scale-95 transition">Удалить</button>
                     </div>`;
                 }).join('');
-            } catch (e) { container.innerHTML = "Ошибка загрузки"; }
+            } catch(e) { list.innerHTML = "Ошибка загрузки"; }
         }
 
-        function goToCoin(symbol) {
-            changeCoin(symbol, null); 
-            switchTab('terminal', document.querySelectorAll('.nav-item')[0]); 
+        async function deleteAlert(id) {
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            try {
+                await fetch(`${window.location.origin}/api/alerts?id=${id}`, { method: 'DELETE' });
+                loadAlerts();
+            } catch(e) {}
         }
 
         // --- ИНСТРУМЕНТЫ ---
@@ -349,7 +342,6 @@
         }
 
         fetchCandles(currentInterval, currentSymbol);
-        loadFavorites(); 
     </script>
 </body>
 </html>

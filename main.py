@@ -17,25 +17,19 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Подключаем базу с обработкой ошибок (чтобы бот не падал, если ключей нет)
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    print("✅ База данных Supabase подключена")
+    print("✅ База данных подключена")
 except Exception as e:
     supabase = None
-    print(f"❌ Ошибка подключения Supabase: {e}")
+    print(f"❌ Ошибка БД: {e}")
 
-# ОГРОМНЫЙ словарь монет для поиска
 KRAKEN_PAIRS = {
     "BTC": "XBTUSD", "ETH": "ETHUSD", "SOL": "SOLUSD", "XRP": "XRPUSD",
     "ADA": "ADAUSD", "DOGE": "XDGUSD", "DOT": "DOTUSD", "AVAX": "AVAXUSD",
     "LINK": "LINKUSD", "MATIC": "MATICUSD", "LTC": "LTCUSD", "BCH": "BCHUSD",
     "ATOM": "ATOMUSD", "UNI": "UNIUSD", "TON": "TONUSD", "TRX": "TRXUSD",
-    "NEAR": "NEARUSD", "SHIB": "SHIBUSD", "PEPE": "PEPEUSD", "FIL": "FILUSD",
-    "XLM": "XLMUSD", "ETC": "ETCUSD", "ALGO": "ALGOUSD", "VET": "VETUSD",
-    "ICP": "ICPUSD", "APT": "APTUSD", "ARB": "ARBUSD", "OP": "OPUSD",
-    "SUI": "SUIUSD", "SEI": "SEIUSD", "INJ": "INJUSD", "TIA": "TIAUSD",
-    "FTM": "FTMUSD", "SAND": "SANDUSD", "MANA": "MANAUSD", "AXS": "AXSUSD"
+    "NEAR": "NEARUSD", "SHIB": "SHIBUSD", "PEPE": "PEPEUSD", "FIL": "FILUSD"
 }
 
 def format_price(price):
@@ -60,6 +54,55 @@ def calculate_sma(prices, period=20):
     if len(prices) < period: return prices[-1] if prices else 0
     return sum(prices[-period:]) / period
 
+# --- ФОНОВАЯ ЗАДАЧА: СКАНЕР ЦЕН ---
+async def check_alerts():
+    print("🚀 Сканер уведомлений запущен...")
+    while True:
+        if supabase:
+            try:
+                # Достаем все активные уведомления
+                res = supabase.table("alerts").select("*").eq("is_active", True).execute()
+                alerts = res.data
+                
+                if alerts:
+                    async with aiohttp.ClientSession() as session:
+                        for alert in alerts:
+                            sym = alert['symbol']
+                            pair = KRAKEN_PAIRS.get(sym, f"{sym}USD")
+                            url = f"https://api.kraken.com/0/public/Ticker?pair={pair}"
+                            
+                            async with session.get(url) as response:
+                                data = await response.json()
+                                if not data.get("error"):
+                                    result_key = [k for k in data["result"].keys() if k != "last"][0]
+                                    current_price = float(data["result"][result_key]["c"][0])
+                                    
+                                    target = float(alert['target_price'])
+                                    condition = alert['condition']
+                                    
+                                    triggered = False
+                                    if condition == 'above' and current_price >= target:
+                                        triggered = True
+                                    elif condition == 'below' and current_price <= target:
+                                        triggered = True
+                                        
+                                    if triggered:
+                                        # Отправляем сообщение пользователю
+                                        text = (
+                                            f"🔔 <b>СРАБОТАЛО УВЕДОМЛЕНИЕ!</b>\n\n"
+                                            f"Монета: <b>{sym}</b>\n"
+                                            f"Цена достигла: <b>${format_price(current_price)}</b>\n"
+                                            f"Ваша цель: {condition} ${format_price(target)}"
+                                        )
+                                        await bot.send_message(chat_id=alert['user_id'], text=text, parse_mode="HTML")
+                                        
+                                        # Отключаем уведомление, чтобы оно не спамило
+                                        supabase.table("alerts").update({"is_active": False}).eq("id", alert['id']).execute()
+            except Exception as e:
+                print(f"Ошибка сканера: {e}")
+                
+        await asyncio.sleep(30) # Проверяем каждые 30 секунд
+
 # --- ВЕБ-СЕРВЕР ---
 async def handle_index(request):
     return web.FileResponse('./index.html')
@@ -68,7 +111,6 @@ async def handle_candles(request):
     interval = request.query.get('interval', '60')
     symbol = request.query.get('symbol', 'BTC').upper()
     pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
-    
     try:
         async with aiohttp.ClientSession() as session:
             url = f"https://api.kraken.com/0/public/OHLC?pair={pair}&interval={interval}"
@@ -76,10 +118,8 @@ async def handle_candles(request):
                 json_data = await response.json()
                 if json_data.get("error"):
                     return web.json_response({"error": f"Монета {symbol} не найдена"}, status=404)
-                
                 result_key = [k for k in json_data["result"].keys() if k != "last"][0]
                 raw_klines = json_data["result"][result_key]
-                
                 candles = [{"time": int(k[0]), "open": float(k[1]), "high": float(k[2]), "low": float(k[3]), "close": float(k[4])} for k in raw_klines]
                 return web.json_response(candles)
     except Exception as e:
@@ -89,101 +129,83 @@ async def handle_analyze(request):
     interval = request.query.get('interval', '60')
     symbol = request.query.get('symbol', 'BTC').upper()
     pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
-
     try:
         async with aiohttp.ClientSession() as session:
             url = f"https://api.kraken.com/0/public/OHLC?pair={pair}&interval={interval}"
             async with session.get(url) as response:
                 json_data = await response.json()
-                if json_data.get("error"):
-                    return web.json_response({"error": f"Монета {symbol} не найдена"}, status=404)
+                if json_data.get("error"): return web.json_response({"error": "Не найдено"}, status=404)
 
         result_key = [k for k in json_data["result"].keys() if k != "last"][0]
-        raw_klines = json_data["result"][result_key]
-        closes = [float(k[4]) for k in raw_klines]
+        closes = [float(k[4]) for k in json_data["result"][result_key]]
         current_price = closes[-1]
         rsi = calculate_rsi(closes)
         sma20 = calculate_sma(closes, 20)
-
-        f_price = format_price(current_price)
-        f_sma = format_price(sma20)
+        f_price, f_sma = format_price(current_price), format_price(sma20)
 
         if rsi < 30 and current_price < sma20:
-            verdict = f"📈 <b>{symbol}: Перепроданность.</b> Рекомендация: <b>LONG</b>."; color = "#00ff88"
+            verdict, color = f"📈 <b>{symbol}: Перепроданность.</b> Рекомендация: <b>LONG</b>.", "#00ff88"
         elif rsi > 70 and current_price > sma20:
-            verdict = f"📉 <b>{symbol}: Перекупленность.</b> Рекомендация: <b>SHORT</b>."; color = "#ff3366"
+            verdict, color = f"📉 <b>{symbol}: Перекупленность.</b> Рекомендация: <b>SHORT</b>.", "#ff3366"
         elif current_price > sma20:
-            verdict = f"🚀 <b>{symbol}: Бычий тренд.</b> Рекомендация: <b>LONG</b>."; color = "#00ff88"
+            verdict, color = f"🚀 <b>{symbol}: Бычий тренд.</b> Рекомендация: <b>LONG</b>.", "#00ff88"
         elif current_price < sma20:
-            verdict = f"⚠️ <b>{symbol}: Медвежий тренд.</b> Рекомендация: <b>SHORT</b>."; color = "#ff3366"
+            verdict, color = f"⚠️ <b>{symbol}: Медвежий тренд.</b> Рекомендация: <b>SHORT</b>.", "#ff3366"
         else:
-            verdict = f"⚖️ <b>{symbol}: Флэт.</b> Лучше подождать."; color = "#00f0ff"
+            verdict, color = f"⚖️ <b>{symbol}: Флэт.</b> Лучше подождать.", "#00f0ff"
 
         analysis_html = f"""
             <div style="color: {color}; margin-bottom: 8px; font-size: 16px;">{verdict}</div>
             <div style="font-size: 12px; color: #9ca3af; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
                 📊 RSI: <b>{rsi:.2f}</b> | MA: <b>${f_sma}</b><br>💰 Цена: <b>${f_price}</b>
-            </div>
-        """
+            </div>"""
         return web.json_response({"analysis": analysis_html})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
-# --- API БАЗЫ ДАННЫХ ---
-async def handle_get_favorites(request):
+# --- API УВЕДОМЛЕНИЙ ---
+async def handle_get_alerts(request):
     user_id = request.query.get('user_id')
-    if not user_id or not supabase: return web.json_response([])
+    if not user_id or user_id == '0' or not supabase: return web.json_response([])
     try:
-        res = supabase.table("favorites").select("symbol").eq("user_id", user_id).execute()
-        return web.json_response([row['symbol'] for row in res.data])
+        res = supabase.table("alerts").select("*").eq("user_id", int(user_id)).eq("is_active", True).execute()
+        return web.json_response(res.data)
     except Exception as e:
-        print(f"Ошибка БД (get): {e}")
+        print(f"Ошибка БД (get_alerts): {e}")
         return web.json_response([])
 
-async def handle_toggle_favorite(request):
-    if not supabase: return web.json_response({"error": "DB not connected"}, status=500)
+async def handle_create_alert(request):
+    if not supabase: return web.json_response({"error": "База не подключена"}, status=500)
     data = await request.json()
     try:
-        if data.get('action') == 'add':
-            supabase.table("favorites").insert({"user_id": data.get('user_id'), "symbol": data.get('symbol').upper()}).execute()
-        elif data.get('action') == 'remove':
-            supabase.table("favorites").delete().eq("user_id", data.get('user_id')).eq("symbol", data.get('symbol').upper()).execute()
+        supabase.table("alerts").insert({
+            "user_id": int(data.get('user_id')),
+            "symbol": data.get('symbol').upper(),
+            "target_price": float(data.get('target_price')),
+            "condition": data.get('condition'),
+            "is_active": True
+        }).execute()
         return web.json_response({"status": "ok"})
     except Exception as e:
-        print(f"Ошибка БД (toggle): {e}")
-        return web.json_response({"status": "ok"}) # Игнорируем ошибку дубля
+        return web.json_response({"error": str(e)}, status=500)
 
-async def handle_tickers(request):
-    symbols_str = request.query.get('symbols', '')
-    if not symbols_str: return web.json_response([])
-    symbols = symbols_str.split(',')
-    
-    results = []
-    async with aiohttp.ClientSession() as session:
-        for sym in symbols:
-            pair = KRAKEN_PAIRS.get(sym, f"{sym}USD")
-            url = f"https://api.kraken.com/0/public/Ticker?pair={pair}"
-            try:
-                async with session.get(url) as response:
-                    json_data = await response.json()
-                    if not json_data.get("error"):
-                        result_key = [k for k in json_data["result"].keys() if k != "last"][0]
-                        ticker = json_data["result"][result_key]
-                        price = float(ticker["c"][0])
-                        open_price = float(ticker["o"])
-                        change = ((price - open_price) / open_price) * 100
-                        results.append({"symbol": sym, "price": price, "change": change})
-            except: pass
-    return web.json_response(results)
+async def handle_delete_alert(request):
+    if not supabase: return web.json_response({"error": "База не подключена"}, status=500)
+    alert_id = request.query.get('id')
+    try:
+        supabase.table("alerts").delete().eq("id", int(alert_id)).execute()
+        return web.json_response({"status": "ok"})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
 
 async def start_web_server():
     app = web.Application()
     app.router.add_get('/', handle_index)
     app.router.add_get('/api/candles', handle_candles)
     app.router.add_get('/api/analyze', handle_analyze)
-    app.router.add_get('/api/favorites', handle_get_favorites)
-    app.router.add_post('/api/favorites', handle_toggle_favorite)
-    app.router.add_get('/api/tickers', handle_tickers)
+    app.router.add_get('/api/alerts', handle_get_alerts)
+    app.router.add_post('/api/alerts', handle_create_alert)
+    app.router.add_delete('/api/alerts', handle_delete_alert)
     
     port = int(os.environ.get('PORT', 8080))
     runner = web.AppRunner(app)
@@ -197,10 +219,12 @@ async def cmd_start(message: types.Message):
     base_url = os.getenv("WEBAPP_URL", "https://google.com")
     web_app_url = f"{base_url}?v={int(time.time())}"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🚀 Открыть Терминал", web_app=WebAppInfo(url=web_app_url))]])
-    await message.answer("Терминал обновлен. Жми кнопку!", reply_markup=keyboard)
+    await message.answer("Терминал обновлен! Теперь доступны Оповещения (Price Alerts).", reply_markup=keyboard)
 
 async def main():
     await start_web_server()
+    # Запускаем фоновый сканер цен
+    asyncio.create_task(check_alerts())
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
