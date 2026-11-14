@@ -124,7 +124,7 @@
         async function fetchCandles(interval) {
             document.getElementById('chart-status').innerText = "Загрузка свечей...";
             try {
-                const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=100`);
+                const res = await fetch(`/api/candles?interval=${interval}`);
                 const data = await res.json();
                 
                 const candleData = data.map(d => ({
