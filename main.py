@@ -14,7 +14,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Словарь популярных монет (Kraken использует XBT для Биткоина и XDG для Догикоина)
+# Словарь популярных монет
 KRAKEN_PAIRS = {
     "BTC": "XBTUSD", "ETH": "ETHUSD", "SOL": "SOLUSD", "XRP": "XRPUSD",
     "ADA": "ADAUSD", "DOGE": "XDGUSD", "DOT": "DOTUSD", "AVAX": "AVAXUSD",
@@ -23,7 +23,6 @@ KRAKEN_PAIRS = {
     "NEAR": "NEARUSD", "SHIB": "SHIBUSD", "PEPE": "PEPEUSD", "FIL": "FILUSD"
 }
 
-# Функция для красивого форматирования цены (для ИИ)
 def format_price(price):
     if price < 0.0001: return f"{price:.8f}"
     if price < 0.01: return f"{price:.6f}"

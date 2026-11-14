@@ -107,7 +107,7 @@
             timeScale: { borderColor: 'rgba(0, 240, 255, 0.2)' },
             rightPriceScale: { 
                 borderColor: 'rgba(0, 240, 255, 0.2)',
-                autoScale: true // Включаем авто-масштаб
+                autoScale: true 
             },
             crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
         });
@@ -137,7 +137,7 @@
 
                 const lastPrice = data.length > 0 ? data[data.length - 1].close : 0;
                 
-                // Динамическая точность для мелких монет
+                // Динамическая точность
                 let precision = 2;
                 let minMove = 0.01;
                 if (lastPrice < 0.0001) { precision = 8; minMove = 0.00000001; }
@@ -150,7 +150,10 @@
 
                 candleSeries.setData(data);
                 
-                // АВТО-МАСШТАБ: Сбрасываем зум, чтобы график сразу вписался в экран
+                // ЖЕСТКИЙ СБРОС МАСШТАБА:
+                // 1. Включаем авто-масштаб для оси цен (Y)
+                chart.priceScale('right').applyOptions({ autoScale: true });
+                // 2. Подстраиваем таймлайн (X)
                 chart.timeScale().fitContent();
                 
                 document.getElementById('chart-status').innerText = `Обновлено`;
