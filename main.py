@@ -34,48 +34,64 @@ def calculate_sma(prices, period=20):
 async def handle_index(request):
     return web.FileResponse('./index.html')
 
-# ПРОКСИ ДЛЯ ГРАФИКА (теперь через BingX)
+# ПРОКСИ ДЛЯ ГРАФИКА (теперь через Bybit)
 async def handle_candles(request):
-    interval = request.query.get('interval', '1h')
+    interval = request.query.get('interval', '60') # 60 = 1h, 240 = 4h, D = 1d
     try:
         async with aiohttp.ClientSession() as session:
-            # Публичный эндпоинт BingX для свечей
-            url = f"https://open-api.bingx.com/openApi/spot/v2/market/kline?symbol=BTC-USDT&interval={interval}&limit=100"
+            # Публичный эндпоинт Bybit для свечей
+            url = f"https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval={interval}&limit=100"
             async with session.get(url) as response:
                 if response.status != 200:
-                    return web.json_response({"error": "BingX API error"}, status=500)
+                    return web.json_response({"error": "Bybit API error"}, status=500)
                 json_data = await response.json()
                 
-                # BingX возвращает данные в поле "data"
-                if json_data.get("code") != 0:
-                    return web.json_response({"error": json_data.get("msg", "BingX error")}, status=500)
+                if json_data.get("retCode") != 0:
+                    return web.json_response({"error": json_data.get("retMsg", "Bybit error")}, status=500)
                 
-                # Возвращаем массив свечей
-                return web.json_response(json_data["data"])
+                # Bybit возвращает список в поле "result" -> "list"
+                raw_klines = json_data["result"]["list"]
+                
+                # Преобразуем в формат, который ждет наш фронтенд
+                candles = []
+                for k in raw_klines:
+                    # k = [startTime, open, high, low, close, volume, turnover]
+                    candles.append({
+                        "time": int(k[0]) // 1000, # Время в секундах
+                        "open": float(k[1]),
+                        "high": float(k[2]),
+                        "low": float(k[3]),
+                        "close": float(k[4])
+                    })
+                
+                # Bybit отдает свечи в обратном порядке (от новых к старым), переворачиваем
+                candles.reverse()
+                return web.json_response(candles)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
-# Анализ для ИИ (тоже через BingX)
+# Анализ для ИИ (тоже через Bybit)
 async def handle_analyze(request):
     try:
         data = await request.json()
-        interval = data.get('interval', '1h')
+        interval = data.get('interval', '60')
     except:
-        interval = '1h'
+        interval = '60'
 
     try:
         async with aiohttp.ClientSession() as session:
-            url = f"https://open-api.bingx.com/openApi/spot/v2/market/kline?symbol=BTC-USDT&interval={interval}&limit=100"
+            url = f"https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval={interval}&limit=100"
             async with session.get(url) as response:
                 json_data = await response.json()
-                if json_data.get("code") != 0:
-                    return web.json_response({"analysis": f"❌ Ошибка BingX: {json_data.get('msg')}"}, status=500)
+                if json_data.get("retCode") != 0:
+                    return web.json_response({"analysis": f"❌ Ошибка Bybit: {json_data.get('retMsg')}"}, status=500)
 
-        # Извлекаем цены закрытия (close)
-        klines = json_data["data"]
-        closes = [float(k[4]) for k in klines]
-        current_price = closes[-1]
+        raw_klines = json_data["result"]["list"]
+        # Берем цены закрытия (close)
+        closes = [float(k[4]) for k in raw_klines]
+        closes.reverse() # Переворачиваем, чтобы шло от старых к новым
         
+        current_price = closes[-1]
         rsi = calculate_rsi(closes)
         sma20 = calculate_sma(closes, 20)
 

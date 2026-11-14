@@ -4,10 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AI Trading Terminal</title>
+    
+    <!-- Скрипт Телеграма -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
     <!-- Профессиональная библиотека графиков -->
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    
+    <!-- Tailwind CSS для верстки -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <style>
         body { 
             background: radial-gradient(circle at top, #0a1128 0%, #030614 100%); 
@@ -21,8 +27,12 @@
             background: rgba(10, 17, 40, 0.6); 
             backdrop-filter: blur(12px); 
         }
-        .neon-text { color: #00f0ff; text-shadow: 0 0 8px rgba(0, 240, 255, 0.5); }
+        .neon-text { 
+            color: #00f0ff; 
+            text-shadow: 0 0 8px rgba(0, 240, 255, 0.5); 
+        }
         
+        /* Анимация пульсации для ИИ */
         @keyframes pulse-glow {
             0% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.7); }
             70% { box-shadow: 0 0 0 10px rgba(0, 240, 255, 0); }
@@ -30,9 +40,18 @@
         }
         .ai-pulse { animation: pulse-glow 2s infinite; }
         
+        /* Кнопки таймфреймов */
         .time-btn { transition: all 0.2s; }
-        .time-btn.active { background-color: #00f0ff; color: #030614; box-shadow: 0 0 10px rgba(0, 240, 255, 0.5); font-weight: bold; }
-        .time-btn:not(.active) { background-color: rgba(0, 240, 255, 0.1); color: #00f0ff; }
+        .time-btn.active { 
+            background-color: #00f0ff; 
+            color: #030614; 
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.5); 
+            font-weight: bold; 
+        }
+        .time-btn:not(.active) { 
+            background-color: rgba(0, 240, 255, 0.1); 
+            color: #00f0ff; 
+        }
         
         #chart-container { width: 100%; height: 300px; }
     </style>
@@ -45,7 +64,7 @@
             <h1 class="text-3xl font-extrabold tracking-tight neon-text">BTC / USDT</h1>
             <div class="flex items-center space-x-2 mt-1">
                 <span class="text-green-400 text-lg font-bold" id="current-price">$--,---.--</span>
-                <span class="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-semibold" id="price-change">+0.00%</span>
+                <span class="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-semibold">Live</span>
             </div>
         </div>
         <div class="w-12 h-12 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-full flex items-center justify-center font-bold text-lg shadow-lg border-2 border-cyan-400/30">
@@ -75,7 +94,7 @@
             <h2 class="text-lg font-bold neon-text">AI Аналитика (Real-time)</h2>
         </div>
         <div class="text-sm text-gray-300 mb-4 leading-relaxed" id="ai-response">
-            Нажми кнопку ниже, чтобы сервер проанализировал текущий график (RSI и MA).
+            Нажми кнопку ниже, чтобы сервер проанализировал текущий график (RSI и MA) через API Bybit.
         </div>
         
         <button onclick="analyzeMarket()" id="analyze-btn" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-3.5 px-4 rounded-2xl transition duration-300 transform active:scale-95 shadow-[0_0_15px_rgba(0,240,255,0.4)]">
@@ -118,28 +137,30 @@
             wickDownColor: '#ff3366',
         });
 
-        // --- 3. ЗАГРУЗКА ДАННЫХ С BINANCE ДЛЯ ГРАФИКА ---
-        let currentInterval = '1h';
+        // --- 3. ЗАГРУЗКА ДАННЫХ С СЕРВЕРА (Bybit) ---
+        let currentInterval = '60'; // По умолчанию 1 час (Bybit: 60)
 
         async function fetchCandles(interval) {
             document.getElementById('chart-status').innerText = "Загрузка свечей...";
             try {
+                // Обращаемся к нашему бэкенду, который сам запросит данные у Bybit
                 const res = await fetch(`${window.location.origin}/api/candles?interval=${interval}`);
                 const data = await res.json();
                 
-                const candleData = data.map(d => ({
-                    time: d[0] / 1000,
-                    open: parseFloat(d[1]),
-                    high: parseFloat(d[2]),
-                    low: parseFloat(d[3]),
-                    close: parseFloat(d[4]),
-                }));
-                
-                candleSeries.setData(candleData);
-                document.getElementById('chart-status').innerText = `Обновлено (${interval})`;
+                if (data.error) {
+                    document.getElementById('chart-status').innerText = `Ошибка: ${data.error}`;
+                    return;
+                }
 
-                const lastCandle = candleData[candleData.length - 1];
-                document.getElementById('current-price').innerText = `$${lastCandle.close.toLocaleString()}`;
+                // Ставим свечи на график
+                candleSeries.setData(data);
+                document.getElementById('chart-status').innerText = `Обновлено`;
+
+                // Обновляем текущую цену на экране
+                if (data.length > 0) {
+                    const lastCandle = data[data.length - 1];
+                    document.getElementById('current-price').innerText = `$${lastCandle.close.toLocaleString()}`;
+                }
             } catch (error) {
                 document.getElementById('chart-status').innerText = "Ошибка сети";
             }
@@ -150,10 +171,16 @@
             document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             
-            currentInterval = interval;
+            // Маппинг: 1ч -> 60, 4ч -> 240, 1д -> D (формат Bybit)
+            let bybitInterval = interval;
+            if (interval === '1h') bybitInterval = '60';
+            if (interval === '4h') bybitInterval = '240';
+            if (interval === '1d') bybitInterval = 'D';
+            
+            currentInterval = bybitInterval;
             if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
             
-            fetchCandles(interval);
+            fetchCandles(bybitInterval);
         }
 
         // --- 5. ОТПРАВКА ЗАПРОСА НА СЕРВЕР ДЛЯ АНАЛИЗА ---
@@ -163,10 +190,9 @@
             
             btn.innerText = "⏳ Анализируем...";
             btn.classList.add('opacity-70');
-            responseDiv.innerHTML = "<span class='animate-pulse text-cyan-300'>Сервер запрашивает данные и считает индикаторы...</span>";
+            responseDiv.innerHTML = "<span class='animate-pulse text-cyan-300'>Сервер запрашивает данные Bybit и считает индикаторы...</span>";
 
             try {
-                // Передаем текущий таймфрейм на сервер (main.py)
                 const response = await fetch(`${window.location.origin}/api/analyze`, { 
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -178,7 +204,7 @@
                 if (data.error) {
                     responseDiv.innerHTML = `❌ Ошибка: ${data.error}`;
                 } else {
-                    responseDiv.innerHTML = data.analysis; // Вставляем HTML, который сформировал Python
+                    responseDiv.innerHTML = data.analysis;
                 }
                 
                 if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
@@ -191,7 +217,7 @@
             }
         }
 
-        // Инициализация графика при загрузке
+        // Инициализация графика при загрузке страницы
         fetchCandles(currentInterval);
     </script>
 </body>
