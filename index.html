@@ -23,7 +23,6 @@
         .coin-btn.active { background-color: rgba(0, 240, 255, 0.15); border-color: #00f0ff; color: #00f0ff; font-weight: bold; }
         .coin-btn:not(.active) { background-color: rgba(255,255,255,0.05); color: #9ca3af; }
         
-        /* Скрываем скроллбар для красоты */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         
@@ -52,7 +51,7 @@
         <button onclick="searchCoin()" class="ml-2 bg-gradient-to-r from-cyan-500 to-blue-600 px-5 rounded-xl font-bold shadow-lg active:scale-95 transition">🔍</button>
     </div>
 
-    <!-- Панель быстрого выбора монет (Скроллится вбок) -->
+    <!-- Панель быстрого выбора монет -->
     <div class="flex space-x-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
         <button onclick="changeCoin('BTC', this)" class="coin-btn active px-4 py-2 rounded-xl text-sm whitespace-nowrap">BTC</button>
         <button onclick="changeCoin('ETH', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">ETH</button>
@@ -60,7 +59,6 @@
         <button onclick="changeCoin('XRP', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">XRP</button>
         <button onclick="changeCoin('DOGE', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">DOGE</button>
         <button onclick="changeCoin('TON', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">TON</button>
-        <button onclick="changeCoin('ADA', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">ADA</button>
     </div>
 
     <!-- Блок с графиком -->
@@ -107,7 +105,10 @@
             layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#00f0ff' },
             grid: { vertLines: { color: 'rgba(0, 240, 255, 0.05)' }, horzLines: { color: 'rgba(0, 240, 255, 0.05)' } },
             timeScale: { borderColor: 'rgba(0, 240, 255, 0.2)' },
-            rightPriceScale: { borderColor: 'rgba(0, 240, 255, 0.2)' },
+            rightPriceScale: { 
+                borderColor: 'rgba(0, 240, 255, 0.2)',
+                autoScale: true // Включаем авто-масштаб
+            },
             crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
         });
 
@@ -119,11 +120,10 @@
             chart.applyOptions({ width: chartContainer.clientWidth });
         });
 
-        // --- ПЕРЕМЕННЫЕ СОСТОЯНИЯ ---
-        let currentInterval = '60'; // 1 час
-        let currentSymbol = 'BTC';  // Биткоин
+        let currentInterval = '60'; 
+        let currentSymbol = 'BTC';  
 
-        // --- ЗАГРУЗКА ДАННЫХ ---
+        // --- ЗАГРУЗКА ДАННЫХ И АВТО-МАСШТАБ ---
         async function fetchCandles(interval, symbol) {
             document.getElementById('chart-status').innerText = "Загрузка...";
             try {
@@ -135,13 +135,29 @@
                     return;
                 }
 
+                const lastPrice = data.length > 0 ? data[data.length - 1].close : 0;
+                
+                // Динамическая точность для мелких монет
+                let precision = 2;
+                let minMove = 0.01;
+                if (lastPrice < 0.0001) { precision = 8; minMove = 0.00000001; }
+                else if (lastPrice < 0.01) { precision = 6; minMove = 0.000001; }
+                else if (lastPrice < 1) { precision = 4; minMove = 0.0001; }
+
+                candleSeries.applyOptions({
+                    priceFormat: { type: 'price', precision: precision, minMove: minMove }
+                });
+
                 candleSeries.setData(data);
+                
+                // АВТО-МАСШТАБ: Сбрасываем зум, чтобы график сразу вписался в экран
+                chart.timeScale().fitContent();
+                
                 document.getElementById('chart-status').innerText = `Обновлено`;
 
                 if (data.length > 0) {
-                    // Если цена маленькая (как у PEPE), показываем 4 знака после запятой
-                    let price = data[data.length - 1].close;
-                    let formattedPrice = price < 1 ? price.toFixed(4) : price.toLocaleString();
+                    let formattedPrice = lastPrice.toFixed(precision);
+                    if (precision === 2) formattedPrice = lastPrice.toLocaleString();
                     document.getElementById('current-price').innerText = `$${formattedPrice}`;
                 }
             } catch (error) {
@@ -149,25 +165,21 @@
             }
         }
 
-        // --- ПОИСК МОНЕТЫ ---
         function searchCoin() {
             const input = document.getElementById('coin-search');
             const symbol = input.value.trim().toUpperCase();
             if (symbol) {
-                // Снимаем выделение с кнопок быстрого выбора
                 document.querySelectorAll('.coin-btn').forEach(b => b.classList.remove('active'));
                 updateUIForCoin(symbol);
-                input.value = ''; // Очищаем поле
-                input.blur(); // Скрываем клавиатуру
+                input.value = ''; 
+                input.blur(); 
             }
         }
 
-        // Обработка нажатия Enter в поиске
         document.getElementById('coin-search').addEventListener('keypress', function (e) {
             if (e.key === 'Enter') searchCoin();
         });
 
-        // --- ПЕРЕКЛЮЧЕНИЕ МОНЕТ (Кнопки) ---
         function changeCoin(symbol, btn) {
             document.querySelectorAll('.coin-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -185,7 +197,6 @@
             fetchCandles(currentInterval, currentSymbol);
         }
 
-        // --- ПЕРЕКЛЮЧЕНИЕ ТАЙМФРЕЙМОВ ---
         function changeTimeframe(interval, btn) {
             document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -201,7 +212,6 @@
             fetchCandles(currentInterval, currentSymbol);
         }
 
-        // --- АНАЛИЗ ИИ ---
         async function analyzeMarket() {
             const btn = document.getElementById('analyze-btn');
             const responseDiv = document.getElementById('ai-response');
@@ -228,7 +238,7 @@
             }
         }
 
-        // Первый запуск при открытии
+        // Первый запуск
         fetchCandles(currentInterval, currentSymbol);
     </script>
 </body>

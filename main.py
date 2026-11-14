@@ -14,31 +14,22 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Расширенный словарь тикеров (Kraken использует свои названия для некоторых монет)
+# Словарь популярных монет (Kraken использует XBT для Биткоина и XDG для Догикоина)
 KRAKEN_PAIRS = {
-    "BTC": "XBTUSD",   # Биткоин
-    "ETH": "ETHUSD",   # Эфириум
-    "SOL": "SOLUSD",   # Солана
-    "XRP": "XRPUSD",   # Рипл
-    "ADA": "ADAUSD",   # Кардано
-    "DOGE": "XDGUSD",  # Догикоин (у Kraken XDG)
-    "DOT": "DOTUSD",   # Полкадот
-    "AVAX": "AVAXUSD", # Аваланч
-    "LINK": "LINKUSD", # Чейнлинк
-    "MATIC": "MATICUSD", # Полигон
-    "LTC": "LTCUSD",   # Лайткоин
-    "BCH": "BCHUSD",   # Биткоин Кэш
-    "ATOM": "ATOMUSD", # Космос
-    "UNI": "UNIUSD",   # Юнисвап
-    "TON": "TONUSD",   # Тон
-    "TRX": "TRXUSD",   # Трон
-    "NEAR": "NEARUSD", # Нир
-    "SHIB": "SHIBUSD", # Шиба Ину
-    "PEPE": "PEPEUSD", # Пепе
-    "FIL": "FILUSD"    # Филекоин
+    "BTC": "XBTUSD", "ETH": "ETHUSD", "SOL": "SOLUSD", "XRP": "XRPUSD",
+    "ADA": "ADAUSD", "DOGE": "XDGUSD", "DOT": "DOTUSD", "AVAX": "AVAXUSD",
+    "LINK": "LINKUSD", "MATIC": "MATICUSD", "LTC": "LTCUSD", "BCH": "BCHUSD",
+    "ATOM": "ATOMUSD", "UNI": "UNIUSD", "TON": "TONUSD", "TRX": "TRXUSD",
+    "NEAR": "NEARUSD", "SHIB": "SHIBUSD", "PEPE": "PEPEUSD", "FIL": "FILUSD"
 }
 
-# --- ФУНКЦИИ ДЛЯ АНАЛИЗА ---
+# Функция для красивого форматирования цены (для ИИ)
+def format_price(price):
+    if price < 0.0001: return f"{price:.8f}"
+    if price < 0.01: return f"{price:.6f}"
+    if price < 1: return f"{price:.4f}"
+    return f"{price:,.2f}"
+
 def calculate_rsi(prices, period=14):
     if len(prices) < period + 1: return 50.0
     gains, losses = 0, 0
@@ -59,12 +50,9 @@ def calculate_sma(prices, period=20):
 async def handle_index(request):
     return web.FileResponse('./index.html')
 
-# ПРОКСИ ДЛЯ ГРАФИКА (Поддерживает любую монету)
 async def handle_candles(request):
     interval = request.query.get('interval', '60')
     symbol = request.query.get('symbol', 'BTC').upper()
-    
-    # Если монета есть в словаре — берем оттуда, иначе пробуем стандартный формат
     pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
     
     try:
@@ -91,7 +79,6 @@ async def handle_candles(request):
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
-# АНАЛИЗ (Поддерживает любую монету)
 async def handle_analyze(request):
     interval = request.query.get('interval', '60')
     symbol = request.query.get('symbol', 'BTC').upper()
@@ -113,6 +100,9 @@ async def handle_analyze(request):
         rsi = calculate_rsi(closes)
         sma20 = calculate_sma(closes, 20)
 
+        f_price = format_price(current_price)
+        f_sma = format_price(sma20)
+
         if rsi < 30 and current_price < sma20:
             verdict = f"📈 <b>{symbol}: Перепроданность.</b> Ждем отскок. Рекомендация: <b>LONG</b>."
             color = "#00ff88"
@@ -132,8 +122,8 @@ async def handle_analyze(request):
         analysis_html = f"""
             <div style="color: {color}; margin-bottom: 8px; font-size: 16px;">{verdict}</div>
             <div style="font-size: 12px; color: #9ca3af; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
-                📊 RSI: <b>{rsi:.2f}</b> | MA: <b>${sma20:,.4f}</b><br>
-                💰 Цена: <b>${current_price:,.4f}</b>
+                📊 RSI: <b>{rsi:.2f}</b> | MA: <b>${f_sma}</b><br>
+                💰 Цена: <b>${f_price}</b>
             </div>
         """
         return web.json_response({"analysis": analysis_html})
@@ -153,7 +143,6 @@ async def start_web_server():
     await site.start()
     print(f"Сервер на порту {port}")
 
-# --- БОТ ---
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     base_url = os.getenv("WEBAPP_URL", "https://google.com")
@@ -162,7 +151,7 @@ async def cmd_start(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 Открыть Терминал", web_app=WebAppInfo(url=web_app_url))]
     ])
-    await message.answer("Терминал обновлен! Теперь доступны любые монеты через поиск.", reply_markup=keyboard)
+    await message.answer("Терминал обновлен. Введи тикер любой монеты!", reply_markup=keyboard)
 
 async def main():
     await start_web_server()
