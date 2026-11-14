@@ -13,14 +13,15 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# --- ВЕБ-СЕРВЕР ---
+# --- ВЕБ-СЕРВЕР (ОТДАЕМ HTML И ОБРАБАТЫВАЕМ ЗАПРОСЫ) ---
+
 async def handle_index(request):
-    # Отдаем наш HTML файл
+    # Отдаем наш красивый HTML файл
     return web.FileResponse('./index.html')
 
 async def handle_analyze(request):
-    # Имитация работы нейросети
-    await asyncio.sleep(1.5) 
+    # Имитация работы нейросети (ИИ)
+    await asyncio.sleep(1.5) # Пауза, чтобы казалось, что ИИ "думает"
     verdicts = [
         "📈 <b>Бычий тренд.</b> Объемы растут. Рекомендация: <b>LONG</b>.",
         "📉 <b>Медвежий сценарий.</b> Цена тестирует поддержку. Рекомендация: <b>SHORT</b>.",
@@ -30,11 +31,30 @@ async def handle_analyze(request):
     fake_ai_response = random.choice(verdicts)
     return web.json_response({"analysis": fake_ai_response})
 
+async def handle_trade(request):
+    # Обрабатываем нажатие на кнопки BUY / SELL
+    data = await request.json()
+    trade_type = data.get('type')
+    price = data.get('price')
+    
+    # В будущем здесь мы будем сохранять сделку в базу данных
+    print(f"🔔 Сделка: {trade_type} по цене ${price}")
+    
+    # Возвращаем ответ обратно в HTML (чтобы выскочило окошко)
+    return web.json_response({
+        "status": "success", 
+        "message": f"✅ Успешно открыта сделка {trade_type} по цене ${price}!"
+    })
+
 async def start_web_server():
     app = web.Application()
+    
+    # Маршруты нашего мини-сайта
     app.router.add_get('/', handle_index)
     app.router.add_post('/api/analyze', handle_analyze)
+    app.router.add_post('/api/trade', handle_trade) # Новый маршрут для сделок
     
+    # Railway автоматически передает порт в переменную окружения PORT
     port = int(os.environ.get('PORT', 8080))
     runner = web.AppRunner(app)
     await runner.setup()
@@ -42,10 +62,11 @@ async def start_web_server():
     await site.start()
     print(f"Веб-сервер запущен на порту {port}")
 
-# --- БОТ ---
+# --- ТЕЛЕГРАМ БОТ ---
+
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    # Railway передаст сюда ссылку на наш сайт через переменную окружения
+    # Получаем ссылку на сайт из Railway (переменная WEBAPP_URL)
     web_app_url = os.getenv("WEBAPP_URL", "https://google.com")
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -58,11 +79,12 @@ async def cmd_start(message: types.Message):
         reply_markup=keyboard
     )
 
-# --- ЗАПУСК ---
+# --- ЗАПУСК ВСЕГО ---
+
 async def main():
-    await start_web_server()
+    await start_web_server() # Сначала запускаем сайт
     print("Бот запущен...")
-    await dp.start_polling(bot)
+    await dp.start_polling(bot) # Потом запускаем бота
 
 if __name__ == "__main__":
     asyncio.run(main())
