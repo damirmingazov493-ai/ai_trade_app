@@ -34,21 +34,28 @@ def calculate_sma(prices, period=20):
 async def handle_index(request):
     return web.FileResponse('./index.html')
 
-# НОВЫЙ ОБРАБОТЧИК: Отдает данные для графика
+# ПРОКСИ ДЛЯ ГРАФИКА (теперь через BingX)
 async def handle_candles(request):
     interval = request.query.get('interval', '1h')
     try:
         async with aiohttp.ClientSession() as session:
-            url = f"https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval={interval}&limit=100"
+            # Публичный эндпоинт BingX для свечей
+            url = f"https://open-api.bingx.com/openApi/spot/v2/market/kline?symbol=BTC-USDT&interval={interval}&limit=100"
             async with session.get(url) as response:
                 if response.status != 200:
-                    return web.json_response({"error": "Binance error"}, status=500)
-                data = await response.json()
-        return web.json_response(data)
+                    return web.json_response({"error": "BingX API error"}, status=500)
+                json_data = await response.json()
+                
+                # BingX возвращает данные в поле "data"
+                if json_data.get("code") != 0:
+                    return web.json_response({"error": json_data.get("msg", "BingX error")}, status=500)
+                
+                # Возвращаем массив свечей
+                return web.json_response(json_data["data"])
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
-# Анализ для ИИ
+# Анализ для ИИ (тоже через BingX)
 async def handle_analyze(request):
     try:
         data = await request.json()
@@ -58,12 +65,17 @@ async def handle_analyze(request):
 
     try:
         async with aiohttp.ClientSession() as session:
-            url = f"https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval={interval}&limit=100"
+            url = f"https://open-api.bingx.com/openApi/spot/v2/market/kline?symbol=BTC-USDT&interval={interval}&limit=100"
             async with session.get(url) as response:
-                klines = await response.json()
+                json_data = await response.json()
+                if json_data.get("code") != 0:
+                    return web.json_response({"analysis": f"❌ Ошибка BingX: {json_data.get('msg')}"}, status=500)
 
+        # Извлекаем цены закрытия (close)
+        klines = json_data["data"]
         closes = [float(k[4]) for k in klines]
         current_price = closes[-1]
+        
         rsi = calculate_rsi(closes)
         sma20 = calculate_sma(closes, 20)
 
@@ -97,7 +109,7 @@ async def handle_analyze(request):
 async def start_web_server():
     app = web.Application()
     app.router.add_get('/', handle_index)
-    app.router.add_get('/api/candles', handle_candles) # <-- Подключили прокси для графика
+    app.router.add_get('/api/candles', handle_candles)
     app.router.add_post('/api/analyze', handle_analyze)
     
     port = int(os.environ.get('PORT', 8080))
