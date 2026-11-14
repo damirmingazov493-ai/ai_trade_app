@@ -6,7 +6,7 @@
     <title>AI Trading Terminal</title>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- ВАЖНО: Зафиксирована версия 4.2.0, чтобы не было ошибок -->
+    <!-- ВАЖНО: Зафиксирована версия 4.2.0 -->
     <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -26,7 +26,7 @@
 
     <div class="flex justify-between items-center mb-6">
         <div>
-            <h1 class="text-3xl font-extrabold tracking-tight neon-text">BTC / USDT</h1>
+            <h1 class="text-3xl font-extrabold tracking-tight neon-text">BTC / USD</h1>
             <div class="flex items-center space-x-2 mt-1">
                 <span class="text-green-400 text-lg font-bold" id="current-price">$--,---.--</span>
                 <span class="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-semibold">Live</span>
@@ -86,15 +86,14 @@
             upColor: '#00ff88', downColor: '#ff3366', borderVisible: false, wickUpColor: '#00ff88', wickDownColor: '#ff3366',
         });
 
-        // Обработка изменения размера экрана
         window.addEventListener('resize', () => {
             chart.applyOptions({ width: chartContainer.clientWidth });
         });
 
-        let currentInterval = '60'; 
+        let currentInterval = '60'; // 60 минут (1 час)
 
         async function fetchCandles(interval) {
-            document.getElementById('chart-status').innerText = "Загрузка свечей...";
+            document.getElementById('chart-status').innerText = "Загрузка...";
             try {
                 const res = await fetch(`${window.location.origin}/api/candles?interval=${interval}`);
                 const data = await res.json();
@@ -119,15 +118,15 @@
             document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             
-            let bybitInterval = interval;
-            if (interval === '1h') bybitInterval = '60';
-            if (interval === '4h') bybitInterval = '240';
-            if (interval === '1d') bybitInterval = 'D';
+            let krakenInterval = interval;
+            if (interval === '1h') krakenInterval = '60';
+            if (interval === '4h') krakenInterval = '240';
+            if (interval === '1d') krakenInterval = '1440';
             
-            currentInterval = bybitInterval;
+            currentInterval = krakenInterval;
             if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
             
-            fetchCandles(bybitInterval);
+            fetchCandles(krakenInterval);
         }
 
         async function analyzeMarket() {
@@ -139,14 +138,15 @@
             responseDiv.innerHTML = "<span class='animate-pulse text-cyan-300'>Сервер запрашивает данные и считает индикаторы...</span>";
 
             try {
-                const response = await fetch(`${window.location.origin}/api/analyze`, { 
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ interval: currentInterval })
-                });
+                // GET-запрос без JSON тела
+                const response = await fetch(`${window.location.origin}/api/analyze?interval=${currentInterval}`);
                 const data = await response.json();
                 
-                responseDiv.innerHTML = data.error ? `❌ Ошибка: ${data.error}` : data.analysis;
+                if (data.error) {
+                    responseDiv.innerHTML = `❌ Ошибка: ${data.error}`;
+                } else {
+                    responseDiv.innerHTML = data.analysis;
+                }
                 if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
             } catch (error) {
                 responseDiv.innerHTML = "❌ Ошибка сети. Не удалось связаться с сервером.";

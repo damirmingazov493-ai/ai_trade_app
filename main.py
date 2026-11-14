@@ -34,62 +34,62 @@ def calculate_sma(prices, period=20):
 async def handle_index(request):
     return web.FileResponse('./index.html')
 
-# ПРОКСИ ДЛЯ ГРАФИКА (теперь через Bybit)
+# ПРОКСИ ДЛЯ ГРАФИКА (Теперь через Kraken)
 async def handle_candles(request):
-    interval = request.query.get('interval', '60') # 60 = 1h, 240 = 4h, D = 1d
+    interval = request.query.get('interval', '60')
     try:
         async with aiohttp.ClientSession() as session:
-            # Публичный эндпоинт Bybit для свечей
-            url = f"https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval={interval}&limit=100"
+            # Kraken API: интервалы в минутах (60=1h, 240=4h, 1440=1d)
+            kraken_interval = interval
+            if interval == '1d': kraken_interval = '1440'
+            
+            url = f"https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval={kraken_interval}"
+            
             async with session.get(url) as response:
                 if response.status != 200:
-                    return web.json_response({"error": "Bybit API error"}, status=500)
+                    raise Exception("Kraken HTTP error")
                 json_data = await response.json()
                 
-                if json_data.get("retCode") != 0:
-                    return web.json_response({"error": json_data.get("retMsg", "Bybit error")}, status=500)
+                if json_data.get("error"):
+                    raise Exception(f"Kraken API error: {json_data['error']}")
                 
-                # Bybit возвращает список в поле "result" -> "list"
-                raw_klines = json_data["result"]["list"]
+                # Kraken возвращает данные в ключе result -> XXBTZUSD
+                raw_klines = json_data["result"]["XXBTZUSD"]
                 
-                # Преобразуем в формат, который ждет наш фронтенд
                 candles = []
                 for k in raw_klines:
-                    # k = [startTime, open, high, low, close, volume, turnover]
+                    # k = [time, open, high, low, close, vwap, volume, count]
                     candles.append({
-                        "time": int(k[0]) // 1000, # Время в секундах
+                        "time": int(k[0]),
                         "open": float(k[1]),
                         "high": float(k[2]),
                         "low": float(k[3]),
                         "close": float(k[4])
                     })
                 
-                # Bybit отдает свечи в обратном порядке (от новых к старым), переворачиваем
-                candles.reverse()
                 return web.json_response(candles)
     except Exception as e:
+        print(f"Ошибка Kraken: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
-# Анализ для ИИ (тоже через Bybit)
+# Анализ для ИИ (Теперь GET-запрос, чтобы избежать ошибки JSON)
 async def handle_analyze(request):
-    try:
-        data = await request.json()
-        interval = data.get('interval', '60')
-    except:
-        interval = '60'
+    interval = request.query.get('interval', '60')
 
     try:
         async with aiohttp.ClientSession() as session:
-            url = f"https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval={interval}&limit=100"
+            kraken_interval = interval
+            if interval == '1d': kraken_interval = '1440'
+            
+            url = f"https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval={kraken_interval}"
+            
             async with session.get(url) as response:
                 json_data = await response.json()
-                if json_data.get("retCode") != 0:
-                    return web.json_response({"analysis": f"❌ Ошибка Bybit: {json_data.get('retMsg')}"}, status=500)
+                if json_data.get("error"):
+                    return web.json_response({"analysis": f"❌ Ошибка Kraken: {json_data['error']}"}, status=500)
 
-        raw_klines = json_data["result"]["list"]
-        # Берем цены закрытия (close)
+        raw_klines = json_data["result"]["XXBTZUSD"]
         closes = [float(k[4]) for k in raw_klines]
-        closes.reverse() # Переворачиваем, чтобы шло от старых к новым
         
         current_price = closes[-1]
         rsi = calculate_rsi(closes)
@@ -120,13 +120,13 @@ async def handle_analyze(request):
         """
         return web.json_response({"analysis": analysis_html})
     except Exception as e:
-        return web.json_response({"analysis": f"❌ Ошибка: {str(e)}"}, status=500)
+        return web.json_response({"analysis": f"❌ Ошибка сервера: {str(e)}"}, status=500)
 
 async def start_web_server():
     app = web.Application()
     app.router.add_get('/', handle_index)
     app.router.add_get('/api/candles', handle_candles)
-    app.router.add_post('/api/analyze', handle_analyze)
+    app.router.add_get('/api/analyze', handle_analyze) # <-- Теперь GET
     
     port = int(os.environ.get('PORT', 8080))
     runner = web.AppRunner(app)
