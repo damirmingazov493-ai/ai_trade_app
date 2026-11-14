@@ -16,14 +16,26 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# Подключаем базу с обработкой ошибок (чтобы бот не падал, если ключей нет)
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("✅ База данных Supabase подключена")
+except Exception as e:
+    supabase = None
+    print(f"❌ Ошибка подключения Supabase: {e}")
+
+# ОГРОМНЫЙ словарь монет для поиска
 KRAKEN_PAIRS = {
     "BTC": "XBTUSD", "ETH": "ETHUSD", "SOL": "SOLUSD", "XRP": "XRPUSD",
     "ADA": "ADAUSD", "DOGE": "XDGUSD", "DOT": "DOTUSD", "AVAX": "AVAXUSD",
     "LINK": "LINKUSD", "MATIC": "MATICUSD", "LTC": "LTCUSD", "BCH": "BCHUSD",
     "ATOM": "ATOMUSD", "UNI": "UNIUSD", "TON": "TONUSD", "TRX": "TRXUSD",
-    "NEAR": "NEARUSD", "SHIB": "SHIBUSD", "PEPE": "PEPEUSD", "FIL": "FILUSD"
+    "NEAR": "NEARUSD", "SHIB": "SHIBUSD", "PEPE": "PEPEUSD", "FIL": "FILUSD",
+    "XLM": "XLMUSD", "ETC": "ETCUSD", "ALGO": "ALGOUSD", "VET": "VETUSD",
+    "ICP": "ICPUSD", "APT": "APTUSD", "ARB": "ARBUSD", "OP": "OPUSD",
+    "SUI": "SUIUSD", "SEI": "SEIUSD", "INJ": "INJUSD", "TIA": "TIAUSD",
+    "FTM": "FTMUSD", "SAND": "SANDUSD", "MANA": "MANAUSD", "AXS": "AXSUSD"
 }
 
 def format_price(price):
@@ -117,34 +129,30 @@ async def handle_analyze(request):
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
-# --- API ДЛЯ БАЗЫ ДАННЫХ (ИЗБРАННОЕ) ---
+# --- API БАЗЫ ДАННЫХ ---
 async def handle_get_favorites(request):
     user_id = request.query.get('user_id')
-    if not user_id: return web.json_response([])
+    if not user_id or not supabase: return web.json_response([])
     try:
         res = supabase.table("favorites").select("symbol").eq("user_id", user_id).execute()
-        symbols = [row['symbol'] for row in res.data]
-        return web.json_response(symbols)
+        return web.json_response([row['symbol'] for row in res.data])
     except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
+        print(f"Ошибка БД (get): {e}")
+        return web.json_response([])
 
 async def handle_toggle_favorite(request):
+    if not supabase: return web.json_response({"error": "DB not connected"}, status=500)
     data = await request.json()
-    user_id = data.get('user_id')
-    symbol = data.get('symbol').upper()
-    action = data.get('action') # 'add' или 'remove'
-
     try:
-        if action == 'add':
-            supabase.table("favorites").insert({"user_id": user_id, "symbol": symbol}).execute()
-        elif action == 'remove':
-            supabase.table("favorites").delete().eq("user_id", user_id).eq("symbol", symbol).execute()
+        if data.get('action') == 'add':
+            supabase.table("favorites").insert({"user_id": data.get('user_id'), "symbol": data.get('symbol').upper()}).execute()
+        elif data.get('action') == 'remove':
+            supabase.table("favorites").delete().eq("user_id", data.get('user_id')).eq("symbol", data.get('symbol').upper()).execute()
         return web.json_response({"status": "ok"})
     except Exception as e:
-        # Если монета уже в избранном (unique constraint), просто игнорируем
-        return web.json_response({"status": "ok"})
+        print(f"Ошибка БД (toggle): {e}")
+        return web.json_response({"status": "ok"}) # Игнорируем ошибку дубля
 
-# --- API ДЛЯ ТИКЕРОВ (ЦЕНЫ В ИЗБРАННОМ) ---
 async def handle_tickers(request):
     symbols_str = request.query.get('symbols', '')
     if not symbols_str: return web.json_response([])
@@ -165,8 +173,7 @@ async def handle_tickers(request):
                         open_price = float(ticker["o"])
                         change = ((price - open_price) / open_price) * 100
                         results.append({"symbol": sym, "price": price, "change": change})
-            except:
-                pass
+            except: pass
     return web.json_response(results)
 
 async def start_web_server():
@@ -190,7 +197,7 @@ async def cmd_start(message: types.Message):
     base_url = os.getenv("WEBAPP_URL", "https://google.com")
     web_app_url = f"{base_url}?v={int(time.time())}"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🚀 Открыть Терминал", web_app=WebAppInfo(url=web_app_url))]])
-    await message.answer("Приложение обновлено! Теперь есть Избранное и Инструменты.", reply_markup=keyboard)
+    await message.answer("Терминал обновлен. Жми кнопку!", reply_markup=keyboard)
 
 async def main():
     await start_web_server()
