@@ -6,7 +6,6 @@
     <title>AI Trading Terminal</title>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- ВАЖНО: Зафиксирована версия 4.2.0 -->
     <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -19,14 +18,24 @@
         .time-btn { transition: all 0.2s; }
         .time-btn.active { background-color: #00f0ff; color: #030614; box-shadow: 0 0 10px rgba(0, 240, 255, 0.5); font-weight: bold; }
         .time-btn:not(.active) { background-color: rgba(0, 240, 255, 0.1); color: #00f0ff; }
+        
+        .coin-btn { transition: all 0.2s; border: 1px solid transparent; }
+        .coin-btn.active { background-color: rgba(0, 240, 255, 0.15); border-color: #00f0ff; color: #00f0ff; font-weight: bold; }
+        .coin-btn:not(.active) { background-color: rgba(255,255,255,0.05); color: #9ca3af; }
+        
+        /* Скрываем скроллбар для красоты */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
         #chart-container { width: 100%; height: 300px; }
     </style>
 </head>
 <body class="p-4 pb-10">
 
-    <div class="flex justify-between items-center mb-6">
+    <!-- Шапка с текущей ценой -->
+    <div class="flex justify-between items-center mb-4">
         <div>
-            <h1 class="text-3xl font-extrabold tracking-tight neon-text">BTC / USD</h1>
+            <h1 class="text-3xl font-extrabold tracking-tight neon-text" id="header-symbol">BTC / USD</h1>
             <div class="flex items-center space-x-2 mt-1">
                 <span class="text-green-400 text-lg font-bold" id="current-price">$--,---.--</span>
                 <span class="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-semibold">Live</span>
@@ -37,6 +46,24 @@
         </div>
     </div>
 
+    <!-- Строка поиска -->
+    <div class="flex mb-4">
+        <input type="text" id="coin-search" placeholder="Введите тикер (например, PEPE)" class="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-cyan-500/30 focus:outline-none focus:border-cyan-500 uppercase placeholder-gray-500">
+        <button onclick="searchCoin()" class="ml-2 bg-gradient-to-r from-cyan-500 to-blue-600 px-5 rounded-xl font-bold shadow-lg active:scale-95 transition">🔍</button>
+    </div>
+
+    <!-- Панель быстрого выбора монет (Скроллится вбок) -->
+    <div class="flex space-x-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
+        <button onclick="changeCoin('BTC', this)" class="coin-btn active px-4 py-2 rounded-xl text-sm whitespace-nowrap">BTC</button>
+        <button onclick="changeCoin('ETH', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">ETH</button>
+        <button onclick="changeCoin('SOL', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">SOL</button>
+        <button onclick="changeCoin('XRP', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">XRP</button>
+        <button onclick="changeCoin('DOGE', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">DOGE</button>
+        <button onclick="changeCoin('TON', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">TON</button>
+        <button onclick="changeCoin('ADA', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">ADA</button>
+    </div>
+
+    <!-- Блок с графиком -->
     <div class="neon-border rounded-3xl p-4 mb-6">
         <div class="flex justify-between items-center mb-4">
             <div class="flex space-x-1 p-1 rounded-xl">
@@ -49,13 +76,14 @@
         <div id="chart-container" class="rounded-xl overflow-hidden"></div>
     </div>
 
+    <!-- Блок с ИИ -->
     <div class="neon-border rounded-3xl p-5 mb-6">
         <div class="flex items-center space-x-2 mb-3">
             <div class="w-2.5 h-2.5 bg-cyan-400 rounded-full ai-pulse"></div>
-            <h2 class="text-lg font-bold neon-text">AI Аналитика (Real-time)</h2>
+            <h2 class="text-lg font-bold neon-text" id="ai-title">AI Аналитика BTC</h2>
         </div>
         <div class="text-sm text-gray-300 mb-4 leading-relaxed" id="ai-response">
-            Нажми кнопку ниже, чтобы сервер проанализировал текущий график (RSI и MA).
+            Нажми кнопку ниже, чтобы сервер проанализировал текущий график.
         </div>
         <button onclick="analyzeMarket()" id="analyze-btn" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-3.5 px-4 rounded-2xl transition duration-300 transform active:scale-95 shadow-[0_0_15px_rgba(0,240,255,0.4)]">
             🧠 Запустить анализ
@@ -71,6 +99,7 @@
             document.getElementById('user-initial').innerText = tg.initDataUnsafe.user.first_name.charAt(0).toUpperCase();
         }
 
+        // --- ИНИЦИАЛИЗАЦИЯ ГРАФИКА ---
         const chartContainer = document.getElementById('chart-container');
         const chart = LightweightCharts.createChart(chartContainer, {
             width: chartContainer.clientWidth,
@@ -90,12 +119,15 @@
             chart.applyOptions({ width: chartContainer.clientWidth });
         });
 
-        let currentInterval = '60'; // 60 минут (1 час)
+        // --- ПЕРЕМЕННЫЕ СОСТОЯНИЯ ---
+        let currentInterval = '60'; // 1 час
+        let currentSymbol = 'BTC';  // Биткоин
 
-        async function fetchCandles(interval) {
+        // --- ЗАГРУЗКА ДАННЫХ ---
+        async function fetchCandles(interval, symbol) {
             document.getElementById('chart-status').innerText = "Загрузка...";
             try {
-                const res = await fetch(`${window.location.origin}/api/candles?interval=${interval}`);
+                const res = await fetch(`${window.location.origin}/api/candles?interval=${interval}&symbol=${symbol}`);
                 const data = await res.json();
                 
                 if (data.error) {
@@ -107,13 +139,53 @@
                 document.getElementById('chart-status').innerText = `Обновлено`;
 
                 if (data.length > 0) {
-                    document.getElementById('current-price').innerText = `$${data[data.length - 1].close.toLocaleString()}`;
+                    // Если цена маленькая (как у PEPE), показываем 4 знака после запятой
+                    let price = data[data.length - 1].close;
+                    let formattedPrice = price < 1 ? price.toFixed(4) : price.toLocaleString();
+                    document.getElementById('current-price').innerText = `$${formattedPrice}`;
                 }
             } catch (error) {
                 document.getElementById('chart-status').innerText = "Ошибка сети";
             }
         }
 
+        // --- ПОИСК МОНЕТЫ ---
+        function searchCoin() {
+            const input = document.getElementById('coin-search');
+            const symbol = input.value.trim().toUpperCase();
+            if (symbol) {
+                // Снимаем выделение с кнопок быстрого выбора
+                document.querySelectorAll('.coin-btn').forEach(b => b.classList.remove('active'));
+                updateUIForCoin(symbol);
+                input.value = ''; // Очищаем поле
+                input.blur(); // Скрываем клавиатуру
+            }
+        }
+
+        // Обработка нажатия Enter в поиске
+        document.getElementById('coin-search').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') searchCoin();
+        });
+
+        // --- ПЕРЕКЛЮЧЕНИЕ МОНЕТ (Кнопки) ---
+        function changeCoin(symbol, btn) {
+            document.querySelectorAll('.coin-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            updateUIForCoin(symbol);
+        }
+
+        function updateUIForCoin(symbol) {
+            currentSymbol = symbol;
+            document.getElementById('header-symbol').innerText = `${symbol} / USD`;
+            document.getElementById('ai-title').innerText = `AI Аналитика ${symbol}`;
+            document.getElementById('ai-response').innerHTML = `Нажми кнопку ниже, чтобы проанализировать <b>${symbol}</b>.`;
+            
+            if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+            
+            fetchCandles(currentInterval, currentSymbol);
+        }
+
+        // --- ПЕРЕКЛЮЧЕНИЕ ТАЙМФРЕЙМОВ ---
         function changeTimeframe(interval, btn) {
             document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -126,20 +198,20 @@
             currentInterval = krakenInterval;
             if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
             
-            fetchCandles(krakenInterval);
+            fetchCandles(currentInterval, currentSymbol);
         }
 
+        // --- АНАЛИЗ ИИ ---
         async function analyzeMarket() {
             const btn = document.getElementById('analyze-btn');
             const responseDiv = document.getElementById('ai-response');
             
             btn.innerText = "⏳ Анализируем...";
             btn.classList.add('opacity-70');
-            responseDiv.innerHTML = "<span class='animate-pulse text-cyan-300'>Сервер запрашивает данные и считает индикаторы...</span>";
+            responseDiv.innerHTML = `<span class='animate-pulse text-cyan-300'>Сервер анализирует ${currentSymbol}...</span>`;
 
             try {
-                // GET-запрос без JSON тела
-                const response = await fetch(`${window.location.origin}/api/analyze?interval=${currentInterval}`);
+                const response = await fetch(`${window.location.origin}/api/analyze?interval=${currentInterval}&symbol=${currentSymbol}`);
                 const data = await response.json();
                 
                 if (data.error) {
@@ -156,7 +228,8 @@
             }
         }
 
-        fetchCandles(currentInterval);
+        // Первый запуск при открытии
+        fetchCandles(currentInterval, currentSymbol);
     </script>
 </body>
 </html>

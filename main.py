@@ -1,6 +1,7 @@
 import asyncio
 import os
 import aiohttp
+import time
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
@@ -12,6 +13,30 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
+# Расширенный словарь тикеров (Kraken использует свои названия для некоторых монет)
+KRAKEN_PAIRS = {
+    "BTC": "XBTUSD",   # Биткоин
+    "ETH": "ETHUSD",   # Эфириум
+    "SOL": "SOLUSD",   # Солана
+    "XRP": "XRPUSD",   # Рипл
+    "ADA": "ADAUSD",   # Кардано
+    "DOGE": "XDGUSD",  # Догикоин (у Kraken XDG)
+    "DOT": "DOTUSD",   # Полкадот
+    "AVAX": "AVAXUSD", # Аваланч
+    "LINK": "LINKUSD", # Чейнлинк
+    "MATIC": "MATICUSD", # Полигон
+    "LTC": "LTCUSD",   # Лайткоин
+    "BCH": "BCHUSD",   # Биткоин Кэш
+    "ATOM": "ATOMUSD", # Космос
+    "UNI": "UNIUSD",   # Юнисвап
+    "TON": "TONUSD",   # Тон
+    "TRX": "TRXUSD",   # Трон
+    "NEAR": "NEARUSD", # Нир
+    "SHIB": "SHIBUSD", # Шиба Ину
+    "PEPE": "PEPEUSD", # Пепе
+    "FIL": "FILUSD"    # Филекоин
+}
 
 # --- ФУНКЦИИ ДЛЯ АНАЛИЗА ---
 def calculate_rsi(prices, period=14):
@@ -34,31 +59,27 @@ def calculate_sma(prices, period=20):
 async def handle_index(request):
     return web.FileResponse('./index.html')
 
-# ПРОКСИ ДЛЯ ГРАФИКА (Теперь через Kraken)
+# ПРОКСИ ДЛЯ ГРАФИКА (Поддерживает любую монету)
 async def handle_candles(request):
     interval = request.query.get('interval', '60')
+    symbol = request.query.get('symbol', 'BTC').upper()
+    
+    # Если монета есть в словаре — берем оттуда, иначе пробуем стандартный формат
+    pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
+    
     try:
         async with aiohttp.ClientSession() as session:
-            # Kraken API: интервалы в минутах (60=1h, 240=4h, 1440=1d)
-            kraken_interval = interval
-            if interval == '1d': kraken_interval = '1440'
-            
-            url = f"https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval={kraken_interval}"
-            
+            url = f"https://api.kraken.com/0/public/OHLC?pair={pair}&interval={interval}"
             async with session.get(url) as response:
-                if response.status != 200:
-                    raise Exception("Kraken HTTP error")
                 json_data = await response.json()
-                
                 if json_data.get("error"):
-                    raise Exception(f"Kraken API error: {json_data['error']}")
+                    return web.json_response({"error": f"Монета {symbol} не найдена"}, status=404)
                 
-                # Kraken возвращает данные в ключе result -> XXBTZUSD
-                raw_klines = json_data["result"]["XXBTZUSD"]
+                result_key = [k for k in json_data["result"].keys() if k != "last"][0]
+                raw_klines = json_data["result"][result_key]
                 
                 candles = []
                 for k in raw_klines:
-                    # k = [time, open, high, low, close, vwap, volume, count]
                     candles.append({
                         "time": int(k[0]),
                         "open": float(k[1]),
@@ -66,67 +87,64 @@ async def handle_candles(request):
                         "low": float(k[3]),
                         "close": float(k[4])
                     })
-                
                 return web.json_response(candles)
     except Exception as e:
-        print(f"Ошибка Kraken: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
-# Анализ для ИИ (Теперь GET-запрос, чтобы избежать ошибки JSON)
+# АНАЛИЗ (Поддерживает любую монету)
 async def handle_analyze(request):
     interval = request.query.get('interval', '60')
+    symbol = request.query.get('symbol', 'BTC').upper()
+    pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
 
     try:
         async with aiohttp.ClientSession() as session:
-            kraken_interval = interval
-            if interval == '1d': kraken_interval = '1440'
-            
-            url = f"https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval={kraken_interval}"
-            
+            url = f"https://api.kraken.com/0/public/OHLC?pair={pair}&interval={interval}"
             async with session.get(url) as response:
                 json_data = await response.json()
                 if json_data.get("error"):
-                    return web.json_response({"analysis": f"❌ Ошибка Kraken: {json_data['error']}"}, status=500)
+                    return web.json_response({"error": f"Монета {symbol} не найдена"}, status=404)
 
-        raw_klines = json_data["result"]["XXBTZUSD"]
-        closes = [float(k[4]) for k in raw_klines]
+        result_key = [k for k in json_data["result"].keys() if k != "last"][0]
+        raw_klines = json_data["result"][result_key]
         
+        closes = [float(k[4]) for k in raw_klines]
         current_price = closes[-1]
         rsi = calculate_rsi(closes)
         sma20 = calculate_sma(closes, 20)
 
         if rsi < 30 and current_price < sma20:
-            verdict = "📈 <b>Перепроданность.</b> Ждем отскок. Рекомендация: <b>LONG</b>."
+            verdict = f"📈 <b>{symbol}: Перепроданность.</b> Ждем отскок. Рекомендация: <b>LONG</b>."
             color = "#00ff88"
         elif rsi > 70 and current_price > sma20:
-            verdict = "📉 <b>Перекупленность.</b> Ждем коррекцию. Рекомендация: <b>SHORT</b>."
+            verdict = f"📉 <b>{symbol}: Перекупленность.</b> Ждем коррекцию. Рекомендация: <b>SHORT</b>."
             color = "#ff3366"
         elif current_price > sma20:
-            verdict = "🚀 <b>Бычий тренд.</b> Цена выше MA. Рост продолжается."
+            verdict = f"🚀 <b>{symbol}: Бычий тренд.</b> Цена выше MA. Рост продолжается."
             color = "#00ff88"
         elif current_price < sma20:
-            verdict = "⚠️ <b>Медвежий тренд.</b> Цена ниже MA. Падение продолжается."
+            verdict = f"⚠️ <b>{symbol}: Медвежий тренд.</b> Цена ниже MA. Падение продолжается."
             color = "#ff3366"
         else:
-            verdict = "⚖️ <b>Флэт.</b> Рынок замер."
+            verdict = f"⚖️ <b>{symbol}: Флэт.</b> Рынок замер."
             color = "#00f0ff"
 
         analysis_html = f"""
             <div style="color: {color}; margin-bottom: 8px; font-size: 16px;">{verdict}</div>
             <div style="font-size: 12px; color: #9ca3af; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
-                📊 RSI: <b>{rsi:.2f}</b> | MA: <b>${sma20:,.2f}</b><br>
-                💰 Цена: <b>${current_price:,.2f}</b>
+                📊 RSI: <b>{rsi:.2f}</b> | MA: <b>${sma20:,.4f}</b><br>
+                💰 Цена: <b>${current_price:,.4f}</b>
             </div>
         """
         return web.json_response({"analysis": analysis_html})
     except Exception as e:
-        return web.json_response({"analysis": f"❌ Ошибка сервера: {str(e)}"}, status=500)
+        return web.json_response({"error": str(e)}, status=500)
 
 async def start_web_server():
     app = web.Application()
     app.router.add_get('/', handle_index)
     app.router.add_get('/api/candles', handle_candles)
-    app.router.add_get('/api/analyze', handle_analyze) # <-- Теперь GET
+    app.router.add_get('/api/analyze', handle_analyze)
     
     port = int(os.environ.get('PORT', 8080))
     runner = web.AppRunner(app)
@@ -138,14 +156,13 @@ async def start_web_server():
 # --- БОТ ---
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    import time
     base_url = os.getenv("WEBAPP_URL", "https://google.com")
     web_app_url = f"{base_url}?v={int(time.time())}"
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 Открыть Терминал", web_app=WebAppInfo(url=web_app_url))]
     ])
-    await message.answer("Терминал обновлен. Жми кнопку!", reply_markup=keyboard)
+    await message.answer("Терминал обновлен! Теперь доступны любые монеты через поиск.", reply_markup=keyboard)
 
 async def main():
     await start_web_server()
