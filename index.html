@@ -5,99 +5,86 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AI Trading Terminal</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Профессиональная библиотека графиков -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { 
-            background: radial-gradient(circle at top, #1a1f2b 0%, #0b0e11 100%); 
+            background: radial-gradient(circle at top, #0a1128 0%, #030614 100%); 
             color: #ffffff; 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             -webkit-tap-highlight-color: transparent;
         }
-        .glass { 
-            background: rgba(30, 35, 41, 0.6); 
-            backdrop-filter: blur(16px); 
-            border: 1px solid rgba(255,255,255,0.08); 
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        .neon-border { 
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.1), inset 0 0 10px rgba(0, 240, 255, 0.05);
+            background: rgba(10, 17, 40, 0.6); 
+            backdrop-filter: blur(12px); 
         }
-        /* Анимация пульсации для ИИ */
+        .neon-text { color: #00f0ff; text-shadow: 0 0 8px rgba(0, 240, 255, 0.5); }
+        
         @keyframes pulse-glow {
-            0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+            0% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 240, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0); }
         }
         .ai-pulse { animation: pulse-glow 2s infinite; }
         
-        /* Красивые свечи */
-        .candle { position: relative; width: 100%; border-radius: 2px; }
-        .candle::before { /* Фитиль сверху */
-            content: ''; position: absolute; top: -8px; left: 50%; width: 2px; height: 8px; background: inherit; transform: translateX(-50%);
-        }
+        .time-btn { transition: all 0.2s; }
+        .time-btn.active { background-color: #00f0ff; color: #030614; box-shadow: 0 0 10px rgba(0, 240, 255, 0.5); font-weight: bold; }
+        .time-btn:not(.active) { background-color: rgba(0, 240, 255, 0.1); color: #00f0ff; }
+        
+        #chart-container { width: 100%; height: 300px; }
     </style>
 </head>
-<body class="p-4 pb-24">
+<body class="p-4 pb-10">
 
     <!-- Шапка -->
     <div class="flex justify-between items-center mb-6">
         <div>
-            <h1 class="text-3xl font-extrabold tracking-tight text-white">BTC / USDT</h1>
+            <h1 class="text-3xl font-extrabold tracking-tight neon-text">BTC / USDT</h1>
             <div class="flex items-center space-x-2 mt-1">
-                <span class="text-green-400 text-lg font-bold">$64,230.50</span>
-                <span class="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-semibold">+2.4%</span>
+                <span class="text-green-400 text-lg font-bold" id="current-price">$--,---.--</span>
+                <span class="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-semibold" id="price-change">+0.00%</span>
             </div>
         </div>
-        <div class="w-12 h-12 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-full flex items-center justify-center font-bold text-lg shadow-lg border-2 border-white/10">
+        <div class="w-12 h-12 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-full flex items-center justify-center font-bold text-lg shadow-lg border-2 border-cyan-400/30">
             <span id="user-initial">U</span>
         </div>
     </div>
 
-    <!-- График (Улучшенный) -->
-    <div class="glass rounded-3xl p-5 mb-6">
+    <!-- Блок с графиком и таймфреймами -->
+    <div class="neon-border rounded-3xl p-4 mb-6">
         <div class="flex justify-between items-center mb-4">
-            <div class="flex space-x-1 bg-black/40 p-1 rounded-xl">
-                <button class="px-3 py-1 text-xs font-semibold text-gray-400 rounded-lg">15м</button>
-                <button class="px-3 py-1 text-xs font-semibold text-gray-400 rounded-lg">1ч</button>
-                <button class="px-3 py-1 text-xs font-semibold bg-indigo-500 text-white rounded-lg shadow-md">1д</button>
+            <div class="flex space-x-1 p-1 rounded-xl">
+                <button onclick="changeTimeframe('1h', this)" class="time-btn px-4 py-1.5 text-xs font-semibold rounded-lg active">1ч</button>
+                <button onclick="changeTimeframe('4h', this)" class="time-btn px-4 py-1.5 text-xs font-semibold rounded-lg">4ч</button>
+                <button onclick="changeTimeframe('1d', this)" class="time-btn px-4 py-1.5 text-xs font-semibold rounded-lg">1д</button>
             </div>
-            <span class="text-xs text-gray-400">Объем: 1.2B</span>
+            <span class="text-xs text-cyan-300/50" id="chart-status">Загрузка...</span>
         </div>
         
-        <!-- Имитация графика (свечи) -->
-        <div class="w-full h-40 flex items-end justify-between px-2 mt-4 relative">
-            <div class="candle bg-green-500 h-[40%]"></div>
-            <div class="candle bg-green-500 h-[65%]"></div>
-            <div class="candle bg-red-500 h-[55%]"></div>
-            <div class="candle bg-green-500 h-[80%]"></div>
-            <div class="candle bg-green-500 h-[95%]"></div>
-            <div class="candle bg-red-500 h-[70%]"></div>
-            <div class="candle bg-green-500 h-[100%]"></div>
-            <div class="candle bg-green-500 h-[85%]"></div>
-        </div>
+        <!-- Контейнер для графика -->
+        <div id="chart-container" class="rounded-xl overflow-hidden"></div>
     </div>
 
     <!-- Блок с ИИ -->
-    <div class="glass rounded-3xl p-5 mb-6 border border-indigo-500/30">
+    <div class="neon-border rounded-3xl p-5 mb-6">
         <div class="flex items-center space-x-2 mb-3">
-            <div class="w-2.5 h-2.5 bg-indigo-400 rounded-full ai-pulse"></div>
-            <h2 class="text-lg font-bold text-indigo-300">AI Аналитика</h2>
+            <div class="w-2.5 h-2.5 bg-cyan-400 rounded-full ai-pulse"></div>
+            <h2 class="text-lg font-bold neon-text">AI Аналитика (Real-time)</h2>
         </div>
-        <p class="text-sm text-gray-300 mb-4 leading-relaxed" id="ai-response">Нажми кнопку ниже, чтобы нейросеть проанализировала текущий график и дала прогноз.</p>
+        <div class="text-sm text-gray-300 mb-4 leading-relaxed" id="ai-response">
+            Нажми кнопку ниже, чтобы сервер проанализировал текущий график (RSI и MA).
+        </div>
         
-        <button onclick="analyzeMarket()" id="analyze-btn" class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold py-3.5 px-4 rounded-2xl transition duration-300 transform active:scale-95 shadow-lg shadow-indigo-500/30">
+        <button onclick="analyzeMarket()" id="analyze-btn" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-3.5 px-4 rounded-2xl transition duration-300 transform active:scale-95 shadow-[0_0_15px_rgba(0,240,255,0.4)]">
             🧠 Запустить анализ
         </button>
     </div>
 
-    <!-- Кнопки действий (Фиксированные внизу) -->
-    <div class="fixed bottom-0 left-0 right-0 p-4 bg-[#0b0e11]/90 backdrop-blur-lg border-t border-white/10 flex space-x-3">
-        <button onclick="makeTrade('BUY')" class="flex-1 bg-gradient-to-r from-green-400 to-green-600 text-white font-extrabold py-4 rounded-2xl text-lg transition transform active:scale-95 shadow-[0_0_20px_rgba(34,197,94,0.3)]">
-            BUY / LONG
-        </button>
-        <button onclick="makeTrade('SELL')" class="flex-1 bg-gradient-to-r from-red-400 to-red-600 text-white font-extrabold py-4 rounded-2xl text-lg transition transform active:scale-95 shadow-[0_0_20px_rgba(239,68,68,0.3)]">
-            SELL / SHORT
-        </button>
-    </div>
-
     <script>
+        // --- 1. ИНИЦИАЛИЗАЦИЯ TELEGRAM ---
         const tg = window.Telegram.WebApp;
         tg.expand(); 
         tg.ready(); 
@@ -107,51 +94,105 @@
             document.getElementById('user-initial').innerText = user.first_name.charAt(0).toUpperCase();
         }
 
-        // Функция для ИИ
+        // --- 2. НАСТРОЙКА ГРАФИКА TRADINGVIEW ---
+        const chartContainer = document.getElementById('chart-container');
+        const chart = LightweightCharts.createChart(chartContainer, {
+            layout: {
+                background: { type: 'solid', color: 'transparent' },
+                textColor: '#00f0ff',
+            },
+            grid: {
+                vertLines: { color: 'rgba(0, 240, 255, 0.05)' },
+                horzLines: { color: 'rgba(0, 240, 255, 0.05)' },
+            },
+            timeScale: { borderColor: 'rgba(0, 240, 255, 0.2)' },
+            rightPriceScale: { borderColor: 'rgba(0, 240, 255, 0.2)' },
+            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        });
+
+        const candleSeries = chart.addCandlestickSeries({
+            upColor: '#00ff88',
+            downColor: '#ff3366',
+            borderVisible: false,
+            wickUpColor: '#00ff88',
+            wickDownColor: '#ff3366',
+        });
+
+        // --- 3. ЗАГРУЗКА ДАННЫХ С BINANCE ДЛЯ ГРАФИКА ---
+        let currentInterval = '1h';
+
+        async function fetchCandles(interval) {
+            document.getElementById('chart-status').innerText = "Загрузка свечей...";
+            try {
+                const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=100`);
+                const data = await res.json();
+                
+                const candleData = data.map(d => ({
+                    time: d[0] / 1000,
+                    open: parseFloat(d[1]),
+                    high: parseFloat(d[2]),
+                    low: parseFloat(d[3]),
+                    close: parseFloat(d[4]),
+                }));
+                
+                candleSeries.setData(candleData);
+                document.getElementById('chart-status').innerText = `Обновлено (${interval})`;
+
+                const lastCandle = candleData[candleData.length - 1];
+                document.getElementById('current-price').innerText = `$${lastCandle.close.toLocaleString()}`;
+            } catch (error) {
+                document.getElementById('chart-status').innerText = "Ошибка сети";
+            }
+        }
+
+        // --- 4. ПЕРЕКЛЮЧЕНИЕ ТАЙМФРЕЙМОВ ---
+        function changeTimeframe(interval, btn) {
+            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            currentInterval = interval;
+            if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+            
+            fetchCandles(interval);
+        }
+
+        // --- 5. ОТПРАВКА ЗАПРОСА НА СЕРВЕР ДЛЯ АНАЛИЗА ---
         async function analyzeMarket() {
             const btn = document.getElementById('analyze-btn');
             const responseDiv = document.getElementById('ai-response');
             
-            btn.innerText = "⏳ Сканирую ордербук...";
+            btn.innerText = "⏳ Анализируем...";
             btn.classList.add('opacity-70');
-            responseDiv.innerHTML = "<span class='animate-pulse text-indigo-300'>Нейросеть изучает объемы и свечи...</span>";
+            responseDiv.innerHTML = "<span class='animate-pulse text-cyan-300'>Сервер запрашивает данные и считает индикаторы...</span>";
 
             try {
-                const response = await fetch('/api/analyze', { method: 'POST' });
+                // Передаем текущий таймфрейм на сервер (main.py)
+                const response = await fetch('/api/analyze', { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ interval: currentInterval })
+                });
+                
                 const data = await response.json();
-                responseDiv.innerHTML = data.analysis;
+                
+                if (data.error) {
+                    responseDiv.innerHTML = `❌ Ошибка: ${data.error}`;
+                } else {
+                    responseDiv.innerHTML = data.analysis; // Вставляем HTML, который сформировал Python
+                }
+                
+                if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+
             } catch (error) {
-                responseDiv.innerHTML = "❌ Ошибка сети. Попробуй еще раз.";
+                responseDiv.innerHTML = "❌ Ошибка сети. Не удалось связаться с сервером.";
             } finally {
                 btn.innerText = "🧠 Запустить анализ";
                 btn.classList.remove('opacity-70');
             }
         }
 
-        // Функция для кнопок BUY/SELL
-        async function makeTrade(type) {
-            // Вибро-отклик (если поддерживается телефоном)
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.impactOccurred('medium');
-            }
-
-            try {
-                // Отправляем запрос на сервер, чтобы сохранить сделку
-                const response = await fetch('/api/trade', { 
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type: type, price: 64230.50 })
-                });
-                
-                const data = await response.json();
-                
-                // Показываем красивое нативное всплывающее окно Телеграма
-                tg.showAlert(data.message);
-                
-            } catch (error) {
-                tg.showAlert("Ошибка при открытии сделки!");
-            }
-        }
+        // Инициализация графика при загрузке
+        fetchCandles(currentInterval);
     </script>
 </body>
 </html>
