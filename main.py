@@ -1,6 +1,7 @@
 import asyncio
 import os
 import random
+import time  # <--- ВОТ ЭТО ДОБАВИЛОСЬ (для сброса кэша)
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
@@ -13,15 +14,13 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# --- ВЕБ-СЕРВЕР (ОТДАЕМ HTML И ОБРАБАТЫВАЕМ ЗАПРОСЫ) ---
+# --- ВЕБ-СЕРВЕР ---
 
 async def handle_index(request):
-    # Отдаем наш красивый HTML файл
     return web.FileResponse('./index.html')
 
 async def handle_analyze(request):
-    # Имитация работы нейросети (ИИ)
-    await asyncio.sleep(1.5) # Пауза, чтобы казалось, что ИИ "думает"
+    await asyncio.sleep(1.5) 
     verdicts = [
         "📈 <b>Бычий тренд.</b> Объемы растут. Рекомендация: <b>LONG</b>.",
         "📉 <b>Медвежий сценарий.</b> Цена тестирует поддержку. Рекомендация: <b>SHORT</b>.",
@@ -32,15 +31,10 @@ async def handle_analyze(request):
     return web.json_response({"analysis": fake_ai_response})
 
 async def handle_trade(request):
-    # Обрабатываем нажатие на кнопки BUY / SELL
     data = await request.json()
     trade_type = data.get('type')
     price = data.get('price')
-    
-    # В будущем здесь мы будем сохранять сделку в базу данных
     print(f"🔔 Сделка: {trade_type} по цене ${price}")
-    
-    # Возвращаем ответ обратно в HTML (чтобы выскочило окошко)
     return web.json_response({
         "status": "success", 
         "message": f"✅ Успешно открыта сделка {trade_type} по цене ${price}!"
@@ -48,13 +42,10 @@ async def handle_trade(request):
 
 async def start_web_server():
     app = web.Application()
-    
-    # Маршруты нашего мини-сайта
     app.router.add_get('/', handle_index)
     app.router.add_post('/api/analyze', handle_analyze)
-    app.router.add_post('/api/trade', handle_trade) # Новый маршрут для сделок
+    app.router.add_post('/api/trade', handle_trade)
     
-    # Railway автоматически передает порт в переменную окружения PORT
     port = int(os.environ.get('PORT', 8080))
     runner = web.AppRunner(app)
     await runner.setup()
@@ -66,25 +57,27 @@ async def start_web_server():
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    # Получаем ссылку на сайт из Railway (переменная WEBAPP_URL)
-    web_app_url = os.getenv("WEBAPP_URL", "https://google.com")
+    # Берем ссылку и добавляем к ней текущее время (чтобы Telegram не кэшировал старую версию)
+    base_url = os.getenv("WEBAPP_URL", "https://google.com")
+    web_app_url = f"{base_url}?v={int(time.time())}"  # <--- ВОТ ЭТА МАГИЯ
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 Открыть Терминал", web_app=WebAppInfo(url=web_app_url))]
     ])
     
-    await message.answer(
-        f"Привет, {message.from_user.first_name}!\n\n"
-        "Добро пожаловать в AI Trading Terminal. Нажми на кнопку ниже, чтобы открыть приложение.",
+    await bot.send_message(
+        chat_id=message.chat.id,
+        text=f"Привет, {message.from_user.first_name}!\n\n"
+             "Добро пожаловать в AI Trading Terminal. Нажми на кнопку ниже, чтобы открыть приложение.",
         reply_markup=keyboard
     )
 
-# --- ЗАПУСК ВСЕГО ---
+# --- ЗАПУСК ---
 
 async def main():
-    await start_web_server() # Сначала запускаем сайт
+    await start_web_server()
     print("Бот запущен...")
-    await dp.start_polling(bot) # Потом запускаем бота
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
