@@ -10,92 +10,151 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
-        body { background: radial-gradient(circle at top, #0a1128 0%, #030614 100%); color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; padding-bottom: 80px; }
-        .neon-border { border: 1px solid rgba(0, 240, 255, 0.3); box-shadow: 0 0 15px rgba(0, 240, 255, 0.1), inset 0 0 10px rgba(0, 240, 255, 0.05); background: rgba(10, 17, 40, 0.6); backdrop-filter: blur(12px); }
-        .neon-text { color: #00f0ff; text-shadow: 0 0 8px rgba(0, 240, 255, 0.5); }
-        @keyframes pulse-glow { 0% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(0, 240, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0); } }
-        .ai-pulse { animation: pulse-glow 2s infinite; }
-        .time-btn { transition: all 0.2s; }
-        .time-btn.active { background-color: #00f0ff; color: #030614; box-shadow: 0 0 10px rgba(0, 240, 255, 0.5); font-weight: bold; }
-        .time-btn:not(.active) { background-color: rgba(0, 240, 255, 0.1); color: #00f0ff; }
+        /* Светлый сиренево-розовый фон */
+        body { 
+            background: linear-gradient(135deg, #e6e2fb 0%, #f3e8ff 100%);
+            color: #4a4a68; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            -webkit-tap-highlight-color: transparent; 
+            padding-bottom: 80px; 
+            min-height: 100vh;
+        }
         
-        .coin-btn { transition: all 0.2s; border: 1px solid transparent; }
-        .coin-btn.active { background-color: rgba(0, 240, 255, 0.15); border-color: #00f0ff; color: #00f0ff; font-weight: bold; }
-        .coin-btn:not(.active) { background-color: rgba(255,255,255,0.05); color: #9ca3af; }
+        /* Эффект матового стекла для карточек */
+        .glass { 
+            background: rgba(255, 255, 255, 0.65); 
+            backdrop-filter: blur(16px); 
+            border: 1px solid rgba(255, 255, 255, 0.8); 
+            box-shadow: 0 8px 32px rgba(100, 80, 150, 0.1);
+            border-radius: 24px;
+        }
         
+        /* Стили для кнопок */
+        .pill-btn { transition: all 0.2s; border-radius: 12px; }
+        .pill-btn.active { background-color: #9b81f7; color: white; box-shadow: 0 4px 12px rgba(155, 129, 247, 0.4); }
+        .pill-btn:not(.active) { background-color: rgba(255,255,255,0.6); color: #71649c; }
+        
+        .coin-btn { transition: all 0.2s; border-radius: 12px; border: 1px solid transparent; }
+        .coin-btn.active { background-color: #e0d4ff; border-color: #9b81f7; color: #6b46c1; font-weight: bold; }
+        .coin-btn:not(.active) { background-color: rgba(255,255,255,0.5); color: #71649c; }
+        
+        /* Прячем скроллбар */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        #chart-container { width: 100%; height: 300px; }
         
-        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(10, 17, 40, 0.95); backdrop-filter: blur(10px); border-top: 1px solid rgba(0, 240, 255, 0.2); display: flex; justify-content: space-around; padding: 10px 0; z-index: 50; }
-        .nav-item { display: flex; flex-direction: column; align-items: center; color: #6b7280; font-size: 10px; transition: 0.3s; }
-        .nav-item.active { color: #00f0ff; text-shadow: 0 0 8px rgba(0, 240, 255, 0.5); }
-        .nav-icon { font-size: 20px; margin-bottom: 4px; }
+        /* Контейнер для графика с картинкой гор */
+        #chart-container { 
+            width: 100%; 
+            height: 320px; 
+            border-radius: 20px;
+            overflow: hidden;
+            /* Подключаем твою картинку с горами */
+            background-image: url('bg.jpg'); 
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        /* Легкое затемнение поверх картинки, чтобы график было лучше видно */
+        #chart-container::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255, 255, 255, 0.2); 
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Нижнее меню */
+        .bottom-nav { 
+            position: fixed; bottom: 0; left: 0; right: 0; 
+            background: rgba(255, 255, 255, 0.85); 
+            backdrop-filter: blur(20px); 
+            border-top: 1px solid rgba(255, 255, 255, 0.5); 
+            display: flex; justify-content: space-around; 
+            padding: 12px 0 20px 0; z-index: 50; 
+            border-radius: 30px 30px 0 0;
+            box-shadow: 0 -4px 20px rgba(100, 80, 150, 0.05);
+        }
+        .nav-item { display: flex; flex-direction: column; align-items: center; color: #a09ab8; font-size: 11px; font-weight: 500; transition: 0.3s; }
+        .nav-item.active { color: #8b5cf6; }
+        .nav-icon { font-size: 22px; margin-bottom: 4px; }
         
         .tab-content { display: none; }
-        .tab-content.active { display: block; animation: fadeIn 0.3s; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .tab-content.active { display: block; animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body class="p-4">
+<body class="p-5">
 
     <!-- ================= ВКЛАДКА 1: ТЕРМИНАЛ ================= -->
     <div id="view-terminal" class="tab-content active">
-        <div class="flex justify-between items-center mb-4">
+        <!-- Шапка -->
+        <div class="flex justify-between items-center mb-6">
             <div>
-                <h1 class="text-3xl font-extrabold tracking-tight neon-text" id="header-symbol">BTC / USD</h1>
+                <h1 class="text-3xl font-extrabold tracking-tight text-slate-800" id="header-symbol">BTC / USD</h1>
                 <div class="flex items-center space-x-2 mt-1">
-                    <span class="text-green-400 text-lg font-bold" id="current-price">$--,---.--</span>
+                    <span class="text-emerald-500 text-lg font-bold" id="current-price">$--,---.--</span>
                 </div>
             </div>
-            <button onclick="goToCreateAlert()" class="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center text-2xl border border-cyan-500/30 text-cyan-400 shadow-[0_0_10px_rgba(0,240,255,0.2)]">
+            <button onclick="goToCreateAlert()" class="w-12 h-12 bg-white/70 rounded-full flex items-center justify-center text-xl shadow-sm text-purple-500 border border-white active:scale-95 transition">
                 🔔
             </button>
         </div>
 
-        <div class="flex mb-4">
-            <input type="text" id="coin-search" placeholder="Введите тикер" class="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-cyan-500/30 focus:outline-none focus:border-cyan-500 uppercase placeholder-gray-500">
-            <button onclick="searchCoin()" class="ml-2 bg-gradient-to-r from-cyan-500 to-blue-600 px-5 rounded-xl font-bold shadow-lg active:scale-95 transition">🔍</button>
+        <!-- Поиск -->
+        <div class="flex mb-5">
+            <input type="text" id="coin-search" placeholder="Поиск монеты (PEPE...)" class="w-full glass px-5 py-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-300 placeholder-slate-400 uppercase font-medium">
+            <button onclick="searchCoin()" class="ml-3 w-12 h-12 bg-purple-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 active:scale-95 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </button>
         </div>
 
-        <div class="flex space-x-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
-            <button onclick="changeCoin('BTC', this)" class="coin-btn active px-4 py-2 rounded-xl text-sm whitespace-nowrap">BTC</button>
-            <button onclick="changeCoin('ETH', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">ETH</button>
-            <button onclick="changeCoin('SOL', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">SOL</button>
-            <button onclick="changeCoin('DOGE', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">DOGE</button>
-            <button onclick="changeCoin('PEPE', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">PEPE</button>
+        <!-- Быстрый выбор монет -->
+        <div class="flex space-x-2 overflow-x-auto pb-2 mb-5 scrollbar-hide">
+            <button onclick="changeCoin('BTC', this)" class="coin-btn active px-4 py-2 text-sm whitespace-nowrap shadow-sm">BTC</button>
+            <button onclick="changeCoin('ETH', this)" class="coin-btn px-4 py-2 text-sm whitespace-nowrap shadow-sm">ETH</button>
+            <button onclick="changeCoin('SOL', this)" class="coin-btn px-4 py-2 text-sm whitespace-nowrap shadow-sm">SOL</button>
+            <button onclick="changeCoin('DOGE', this)" class="coin-btn px-4 py-2 text-sm whitespace-nowrap shadow-sm">DOGE</button>
+            <button onclick="changeCoin('PEPE', this)" class="coin-btn px-4 py-2 text-sm whitespace-nowrap shadow-sm">PEPE</button>
         </div>
 
-        <div class="neon-border rounded-3xl p-4 mb-6">
-            <div class="flex justify-between items-center mb-4">
-                <div class="flex space-x-1 p-1 rounded-xl">
-                    <button onclick="changeTimeframe('1h', this)" class="time-btn px-3 py-1.5 text-xs font-semibold rounded-lg active">1ч</button>
-                    <button onclick="changeTimeframe('4h', this)" class="time-btn px-3 py-1.5 text-xs font-semibold rounded-lg">4ч</button>
-                    <button onclick="changeTimeframe('1d', this)" class="time-btn px-3 py-1.5 text-xs font-semibold rounded-lg">1д</button>
+        <!-- Блок Графика -->
+        <div class="glass p-5 mb-6">
+            <div class="flex justify-between items-center mb-4 relative z-10">
+                <div class="flex space-x-1 bg-white/50 p-1 rounded-xl">
+                    <button onclick="changeTimeframe('1h', this)" class="pill-btn active px-4 py-1.5 text-xs font-bold">1ч</button>
+                    <button onclick="changeTimeframe('4h', this)" class="pill-btn px-4 py-1.5 text-xs font-bold">4ч</button>
+                    <button onclick="changeTimeframe('1d', this)" class="pill-btn px-4 py-1.5 text-xs font-bold">1д</button>
                 </div>
-                
-                <button onclick="toggleVolume()" id="vol-btn" class="bg-gray-800 text-cyan-400 border border-cyan-500/30 px-3 py-1.5 text-xs font-semibold rounded-lg transition active:scale-95">
+                <button onclick="toggleVolume()" id="vol-btn" class="bg-white/60 text-purple-600 border border-white px-3 py-1.5 text-xs font-bold rounded-xl transition shadow-sm active:scale-95">
                     📊 Объемы
                 </button>
             </div>
             
-            <div id="chart-container" class="rounded-xl overflow-hidden"></div>
+            <!-- Сам график с горами на фоне -->
+            <div id="chart-container"></div>
             
-            <div class="mt-2 text-xs text-gray-400 flex justify-between">
-                <span>🟣 POC (Макс. объем)</span>
-                <span class="text-green-400">🟢 Цель Лонг</span>
-                <span class="text-red-400">🔴 Цель Шорт</span>
-                <span id="chart-status" class="text-cyan-300/50"></span>
+            <div class="mt-3 text-xs text-slate-500 flex justify-between font-medium relative z-10">
+                <span>🟣 POC</span>
+                <span class="text-emerald-500">🟢 Лонг</span>
+                <span class="text-rose-500">🔴 Шорт</span>
+                <span id="chart-status" class="text-purple-400"></span>
             </div>
         </div>
 
-        <div class="neon-border rounded-3xl p-5 mb-6">
-            <div class="flex items-center space-x-2 mb-3">
-                <div class="w-2.5 h-2.5 bg-cyan-400 rounded-full ai-pulse"></div>
-                <h2 class="text-lg font-bold neon-text" id="ai-title">AI Аналитика</h2>
+        <!-- Блок ИИ -->
+        <div class="glass p-6 mb-6 relative overflow-hidden">
+            <div class="absolute -top-10 -right-10 w-32 h-32 bg-purple-400 rounded-full mix-blend-multiply filter blur-2xl opacity-20 animate-blob"></div>
+            <div class="flex items-center space-x-2 mb-3 relative z-10">
+                <div class="w-2.5 h-2.5 bg-purple-500 rounded-full animate-pulse"></div>
+                <h2 class="text-lg font-bold text-slate-800" id="ai-title">AI Аналитика</h2>
             </div>
-            <div class="text-sm text-gray-300 mb-4 leading-relaxed" id="ai-response">Нажми кнопку ниже, чтобы получить анализ и цели по ликвидности.</div>
-            <button onclick="analyzeMarket()" id="analyze-btn" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-3.5 px-4 rounded-2xl transition transform active:scale-95 shadow-lg">
+            <div class="text-sm text-slate-600 mb-5 leading-relaxed relative z-10" id="ai-response">
+                Нажми кнопку ниже, чтобы получить анализ и цели по ликвидности.
+            </div>
+            <button onclick="analyzeMarket()" id="analyze-btn" class="w-full bg-[#8b5cf6] hover:bg-[#7c3aed] text-white font-bold py-3.5 px-4 rounded-2xl transition duration-300 transform active:scale-95 shadow-lg shadow-purple-500/30 relative z-10">
                 🧠 Запустить анализ
             </button>
         </div>
@@ -103,41 +162,47 @@
 
     <!-- ================= ВКЛАДКА 2: ОПОВЕЩЕНИЯ ================= -->
     <div id="view-alerts" class="tab-content">
-        <h1 class="text-2xl font-bold neon-text mb-6">🔔 Мои Оповещения</h1>
+        <h1 class="text-2xl font-extrabold text-slate-800 mb-6">🔔 Оповещения</h1>
         
-        <div class="neon-border rounded-3xl p-5 mb-6">
-            <h2 class="text-sm font-bold text-cyan-300 mb-3">Создать новое</h2>
-            <div class="flex space-x-2 mb-3">
-                <input type="text" id="alert-symbol" value="BTC" class="w-1/3 bg-gray-800 text-white rounded-xl px-3 py-2 border border-cyan-500/30 uppercase text-center font-bold">
-                <input type="number" id="alert-price" placeholder="Цена" class="w-2/3 bg-gray-800 text-white rounded-xl px-3 py-2 border border-cyan-500/30">
+        <div class="glass p-6 mb-6">
+            <h2 class="text-sm font-bold text-purple-600 mb-4">Создать новое</h2>
+            <div class="flex space-x-3 mb-4">
+                <input type="text" id="alert-symbol" value="BTC" class="w-1/3 bg-white/60 text-slate-800 rounded-xl px-3 py-3 border border-white uppercase text-center font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-300">
+                <input type="number" id="alert-price" placeholder="Цена" class="w-2/3 bg-white/60 text-slate-800 rounded-xl px-4 py-3 border border-white shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-300">
             </div>
-            <div class="flex space-x-2 mb-4">
-                <select id="alert-condition" class="w-full bg-gray-800 text-white rounded-xl px-3 py-2 border border-cyan-500/30 appearance-none">
+            <div class="flex space-x-3 mb-5">
+                <select id="alert-condition" class="w-full bg-white/60 text-slate-800 rounded-xl px-4 py-3 border border-white appearance-none shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-300 font-medium">
                     <option value="above">📈 Цена поднимется ВЫШЕ</option>
                     <option value="below">📉 Цена опустится НИЖЕ</option>
                 </select>
             </div>
-            <button onclick="createAlert()" class="w-full bg-cyan-500 text-black font-bold py-3 rounded-xl active:scale-95 transition">Установить уведомление</button>
+            <button onclick="createAlert()" class="w-full bg-purple-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-purple-500/30 active:scale-95 transition">Установить уведомление</button>
         </div>
 
-        <h2 class="text-sm font-bold text-gray-400 mb-3">Активные уведомления</h2>
+        <h2 class="text-sm font-bold text-slate-500 mb-3">Активные</h2>
         <div id="alerts-list" class="space-y-3">
-            <div class="text-center text-gray-500">Загрузка...</div>
+            <div class="text-center text-slate-400 py-10">Загрузка...</div>
         </div>
     </div>
 
     <!-- ================= ВКЛАДКА 3: ИНСТРУМЕНТЫ ================= -->
     <div id="view-tools" class="tab-content">
-        <h1 class="text-2xl font-bold neon-text mb-6">🛠 Инструменты анализа</h1>
-        <div class="neon-border rounded-3xl p-5 mb-4">
-            <h2 class="text-lg font-bold text-white mb-2">Сводка по <span id="tools-symbol">BTC</span> (1ч)</h2>
-            <div class="flex items-center justify-between bg-black/30 p-4 rounded-xl mb-3">
-                <span class="text-gray-300">Общий сигнал:</span>
-                <span class="text-xl font-bold text-green-400" id="tool-signal">Анализ...</span>
+        <h1 class="text-2xl font-extrabold text-slate-800 mb-6">🛠 Анализ</h1>
+        <div class="glass p-6 mb-4">
+            <h2 class="text-lg font-bold text-slate-800 mb-4">Сводка по <span id="tools-symbol" class="text-purple-600">BTC</span></h2>
+            <div class="flex items-center justify-between bg-white/50 p-4 rounded-xl mb-4 border border-white shadow-sm">
+                <span class="text-slate-600 font-medium">Общий сигнал:</span>
+                <span class="text-xl font-extrabold text-emerald-500" id="tool-signal">Анализ...</span>
             </div>
             <div class="grid grid-cols-2 gap-3 text-sm">
-                <div class="bg-gray-800 p-3 rounded-lg"><div class="text-gray-400 mb-1">RSI (14)</div><div class="font-bold text-white" id="tool-rsi">-</div></div>
-                <div class="bg-gray-800 p-3 rounded-lg"><div class="text-gray-400 mb-1">Тренд (MA20)</div><div class="font-bold text-white" id="tool-ma">-</div></div>
+                <div class="bg-white/60 p-4 rounded-xl border border-white shadow-sm">
+                    <div class="text-slate-500 mb-1 font-medium">RSI (14)</div>
+                    <div class="font-bold text-slate-800 text-lg" id="tool-rsi">-</div>
+                </div>
+                <div class="bg-white/60 p-4 rounded-xl border border-white shadow-sm">
+                    <div class="text-slate-500 mb-1 font-medium">Тренд (MA)</div>
+                    <div class="font-bold text-slate-800 text-lg" id="tool-ma">-</div>
+                </div>
             </div>
         </div>
     </div>
@@ -175,44 +240,60 @@
             if (tabId === 'tools') loadToolsData();
         }
 
-        // --- ГРАФИК ---
+        // --- ГРАФИК (Светлая тема) ---
         const chartContainer = document.getElementById('chart-container');
         const chart = LightweightCharts.createChart(chartContainer, {
-            width: chartContainer.clientWidth, height: 300,
-            layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#00f0ff' },
-            grid: { vertLines: { color: 'rgba(0, 240, 255, 0.05)' }, horzLines: { color: 'rgba(0, 240, 255, 0.05)' } },
-            rightPriceScale: { borderColor: 'rgba(0, 240, 255, 0.2)', autoScale: true },
-            timeScale: { borderColor: 'rgba(0, 240, 255, 0.2)' }
+            width: chartContainer.clientWidth, 
+            height: 320,
+            layout: { 
+                background: { type: 'solid', color: 'transparent' }, // Прозрачный фон, чтобы видеть горы
+                textColor: '#475569' // Темно-серый текст для читаемости на фоне гор
+            },
+            grid: { 
+                vertLines: { color: 'rgba(0, 0, 0, 0.05)' }, 
+                horzLines: { color: 'rgba(0, 0, 0, 0.05)' } 
+            },
+            rightPriceScale: { 
+                borderColor: 'rgba(0, 0, 0, 0.1)' 
+            },
+            timeScale: { 
+                borderColor: 'rgba(0, 0, 0, 0.1)' 
+            }
         });
-        const candleSeries = chart.addCandlestickSeries({ upColor: '#00ff88', downColor: '#ff3366', borderVisible: false, wickUpColor: '#00ff88', wickDownColor: '#ff3366' });
+        const candleSeries = chart.addCandlestickSeries({ 
+            upColor: '#10b981', // Зеленый
+            downColor: '#f43f5e', // Красный
+            borderVisible: false, 
+            wickUpColor: '#10b981', 
+            wickDownColor: '#f43f5e' 
+        });
 
         let currentInterval = '60'; 
         let currentSymbol = 'BTC';
 
-        // --- ЛИНИИ ИНДИКАТОРОВ ---
+        // --- ЛИНИИ ---
         let volumeLines = [];
         let targetLines = [];
         let showVolumes = false;
 
-        // Объемы
         function toggleVolume() {
             showVolumes = !showVolumes;
             const btn = document.getElementById('vol-btn');
             
             if (showVolumes) {
-                btn.classList.add('bg-cyan-500', 'text-black');
-                btn.classList.remove('text-cyan-400', 'bg-gray-800');
+                btn.classList.add('bg-purple-500', 'text-white');
+                btn.classList.remove('text-purple-600', 'bg-white/60');
                 loadVolumeProfile();
             } else {
-                btn.classList.remove('bg-cyan-500', 'text-black');
-                btn.classList.add('text-cyan-400', 'bg-gray-800');
+                btn.classList.remove('bg-purple-500', 'text-white');
+                btn.classList.add('text-purple-600', 'bg-white/60');
                 clearLines(volumeLines);
             }
         }
 
         function clearLines(linesArray) {
             linesArray.forEach(line => candleSeries.removePriceLine(line));
-            linesArray.length = 0; // Очищаем массив
+            linesArray.length = 0; 
         }
 
         async function loadVolumeProfile() {
@@ -225,17 +306,16 @@
                 if (data.error) return;
 
                 data.forEach((node, index) => {
-                    let color = index === 0 ? '#ff00ff' : (index === 1 ? '#00ff88' : '#00f0ff');
+                    let color = index === 0 ? '#a855f7' : (index === 1 ? '#10b981' : '#3b82f6');
                     let width = index === 0 ? 2 : 1;
                     const line = candleSeries.createPriceLine({
                         price: node.price, color: color, lineWidth: width, lineStyle: 0, axisLabelVisible: true, title: index === 0 ? 'POC' : '',
                     });
                     volumeLines.push(line);
                 });
-            } catch (e) { console.log("Ошибка объемов", e); }
+            } catch (e) { console.log(e); }
         }
 
-        // --- ЗАГРУЗКА СВЕЧЕЙ ---
         async function fetchCandles(interval, symbol) {
             document.getElementById('chart-status').innerText = "Загрузка...";
             try {
@@ -257,9 +337,7 @@
                 document.getElementById('chart-status').innerText = `Обновлено`;
                 document.getElementById('current-price').innerText = `$${lastPrice.toFixed(precision).toLocaleString()}`;
                 
-                // Очищаем цели при смене монеты, чтобы не путать
                 clearLines(targetLines);
-                
                 if (showVolumes) loadVolumeProfile();
             } catch (error) { document.getElementById('chart-status').innerText = "Ошибка"; }
         }
@@ -289,24 +367,21 @@
             document.getElementById('ai-title').innerText = `AI Аналитика ${symbol}`;
             document.getElementById('ai-response').innerHTML = `Нажми кнопку ниже, чтобы получить анализ и цели по ликвидности.`;
             if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
-            
             fetchCandles(currentInterval, currentSymbol);
         }
 
         function changeTimeframe(interval, btn) {
-            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.time-btn, .pill-btn').forEach(b => b.classList.remove('active')); // Поддержка обоих классов
             btn.classList.add('active');
             currentInterval = interval === '1h' ? '60' : interval === '4h' ? '240' : '1440';
             fetchCandles(currentInterval, currentSymbol);
         }
 
-        // --- АНАЛИЗ И РИСОВАНИЕ ЦЕЛЕЙ ---
         async function analyzeMarket() {
             const btn = document.getElementById('analyze-btn');
             const responseDiv = document.getElementById('ai-response');
             btn.innerText = "⏳ Ищем цели..."; btn.classList.add('opacity-70');
             
-            // Очищаем старые цели
             clearLines(targetLines);
             
             try {
@@ -320,24 +395,20 @@
                 
                 responseDiv.innerHTML = data.analysis;
 
-                // Рисуем новые цели на графике
                 if (data.targets && data.targets.length > 0) {
                     data.targets.forEach((target, index) => {
                         const line = candleSeries.createPriceLine({
                             price: target.price,
                             color: data.color,
                             lineWidth: 1,
-                            lineStyle: 2, // Пунктирная линия
+                            lineStyle: 2, 
                             axisLabelVisible: true,
                             title: target.label,
                         });
                         targetLines.push(line);
                     });
-                    
-                    // Подстраиваем масштаб, чтобы цели были видны
                     chart.timeScale().fitContent();
                 }
-                
             } catch (error) { responseDiv.innerHTML = "❌ Ошибка сети"; } 
             finally { btn.innerText = "🧠 Запустить анализ"; btn.classList.remove('opacity-70'); }
         }
@@ -380,19 +451,19 @@
                 const alerts = await res.json();
                 
                 if (alerts.length === 0) {
-                    list.innerHTML = `<div class="text-center text-gray-500">У вас пока нет активных уведомлений</div>`;
+                    list.innerHTML = `<div class="text-center text-slate-400 py-10">У вас пока нет активных уведомлений</div>`;
                     return;
                 }
 
                 list.innerHTML = alerts.map(a => {
                     const condText = a.condition === 'above' ? '📈 Выше' : '📉 Ниже';
                     return `
-                    <div class="neon-border rounded-2xl p-4 flex justify-between items-center mb-3">
+                    <div class="glass p-4 flex justify-between items-center mb-3">
                         <div>
-                            <div class="font-bold text-lg text-white">${a.symbol}</div>
-                            <div class="text-sm text-gray-400">${condText} $${a.target_price}</div>
+                            <div class="font-bold text-lg text-slate-800">${a.symbol}</div>
+                            <div class="text-sm font-medium text-slate-500">${condText} $${a.target_price}</div>
                         </div>
-                        <button onclick="deleteAlert(${a.id})" class="bg-red-500/20 text-red-400 px-3 py-2 rounded-lg text-sm font-bold active:scale-95 transition">Удалить</button>
+                        <button onclick="deleteAlert(${a.id})" class="bg-rose-100 text-rose-500 px-4 py-2 rounded-xl text-sm font-bold active:scale-95 transition">Удалить</button>
                     </div>`;
                 }).join('');
             } catch(e) { list.innerHTML = "Ошибка загрузки"; }
@@ -421,11 +492,11 @@
                     
                     const sig = document.getElementById('tool-signal');
                     if (data.analysis.includes("Бычий") || data.analysis.includes("Перепроданность")) {
-                        sig.innerText = "Покупать (LONG)"; sig.className = "text-xl font-bold text-green-400";
+                        sig.innerText = "Покупать (LONG)"; sig.className = "text-xl font-extrabold text-emerald-500";
                     } else if (data.analysis.includes("Медвежий") || data.analysis.includes("Перекупленность")) {
-                        sig.innerText = "Продавать (SHORT)"; sig.className = "text-xl font-bold text-red-400";
+                        sig.innerText = "Продавать (SHORT)"; sig.className = "text-xl font-extrabold text-rose-500";
                     } else {
-                        sig.innerText = "Нейтрально"; sig.className = "text-xl font-bold text-gray-400";
+                        sig.innerText = "Нейтрально"; sig.className = "text-xl font-extrabold text-slate-400";
                     }
                 }
             } catch(e) { console.log(e); }
