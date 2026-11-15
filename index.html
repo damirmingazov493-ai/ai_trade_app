@@ -67,21 +67,30 @@
         </div>
 
         <div class="neon-border rounded-3xl p-4 mb-6">
+            <!-- Панель управления графиком -->
             <div class="flex justify-between items-center mb-4">
                 <div class="flex space-x-1 p-1 rounded-xl">
-                    <button onclick="changeTimeframe('1h', this)" class="time-btn px-4 py-1.5 text-xs font-semibold rounded-lg active">1ч</button>
-                    <button onclick="changeTimeframe('4h', this)" class="time-btn px-4 py-1.5 text-xs font-semibold rounded-lg">4ч</button>
-                    <button onclick="changeTimeframe('1d', this)" class="time-btn px-4 py-1.5 text-xs font-semibold rounded-lg">1д</button>
+                    <button onclick="changeTimeframe('1h', this)" class="time-btn px-3 py-1.5 text-xs font-semibold rounded-lg active">1ч</button>
+                    <button onclick="changeTimeframe('4h', this)" class="time-btn px-3 py-1.5 text-xs font-semibold rounded-lg">4ч</button>
+                    <button onclick="changeTimeframe('1d', this)" class="time-btn px-3 py-1.5 text-xs font-semibold rounded-lg">1д</button>
                 </div>
-                <!-- Кнопка объемов -->
-                <button onclick="toggleVolume()" id="vol-btn" class="bg-gray-800 text-cyan-400 border border-cyan-500/30 px-3 py-1.5 text-xs font-semibold rounded-lg transition active:scale-95">
-                    📊 Объемы
-                </button>
+                
+                <!-- Кнопки ТТ и Объемы -->
+                <div class="flex space-x-2">
+                    <button onclick="toggleTT()" id="tt-btn" class="bg-gray-800 text-indigo-400 border border-indigo-500/30 px-3 py-1.5 text-xs font-semibold rounded-lg transition active:scale-95">
+                        ТТ
+                    </button>
+                    <button onclick="toggleVolume()" id="vol-btn" class="bg-gray-800 text-cyan-400 border border-cyan-500/30 px-3 py-1.5 text-xs font-semibold rounded-lg transition active:scale-95">
+                        📊 Об.
+                    </button>
+                </div>
             </div>
+            
             <div id="chart-container" class="rounded-xl overflow-hidden"></div>
+            
             <div class="mt-2 text-xs text-gray-400 flex justify-between">
-                <span>🟣 POC (Макс. объем)</span>
-                <span>🟢/🔵 Сильные уровни</span>
+                <span class="text-indigo-400/70">ТТ = Боковик</span>
+                <span class="text-cyan-400/70">📊 POC</span>
                 <span id="chart-status" class="text-cyan-300/50"></span>
             </div>
         </div>
@@ -185,6 +194,7 @@
 
         let currentInterval = '60'; 
         let currentSymbol = 'BTC';
+        let currentCandleData = []; // Храним текущие свечи
 
         // --- ЛОГИКА ОБЪЕМОВ ---
         let priceLines = [];
@@ -237,6 +247,70 @@
             } catch (e) { console.log("Ошибка объемов", e); }
         }
 
+        // --- ЛОГИКА "ТТ" (БОКОВИК) ---
+        let ttLines = [];
+        let showTT = false;
+
+        function toggleTT() {
+            showTT = !showTT;
+            const btn = document.getElementById('tt-btn');
+            
+            if (showTT) {
+                btn.classList.add('bg-indigo-500', 'text-white');
+                btn.classList.remove('text-indigo-400', 'bg-gray-800');
+                drawTT(currentCandleData);
+            } else {
+                btn.classList.remove('bg-indigo-500', 'text-white');
+                btn.classList.add('text-indigo-400', 'bg-gray-800');
+                clearTT();
+            }
+        }
+
+        function clearTT() {
+            ttLines.forEach(line => candleSeries.removePriceLine(line));
+            ttLines = [];
+        }
+
+        function drawTT(data) {
+            clearTT();
+            if (!data || data.length < 30) return;
+
+            // Берем последние 30 свечей для анализа
+            const lastCandles = data.slice(-30);
+            const highs = lastCandles.map(c => c.high);
+            const lows = lastCandles.map(c => c.low);
+            
+            const maxHigh = Math.max(...highs);
+            const minLow = Math.min(...lows);
+            
+            const rangePercent = ((maxHigh - minLow) / minLow) * 100;
+            
+            // Если разброс цены за 30 свечей меньше 5% — это боковик
+            if (rangePercent < 5.0) {
+                // Верхняя граница (неяркая)
+                const topLine = candleSeries.createPriceLine({
+                    price: maxHigh,
+                    color: 'rgba(99, 102, 241, 0.4)', // Полупрозрачный индиго
+                    lineWidth: 2,
+                    lineStyle: 0,
+                    axisLabelVisible: true,
+                    title: 'ТТ Верх',
+                });
+                
+                // Нижняя граница (неяркая)
+                const bottomLine = candleSeries.createPriceLine({
+                    price: minLow,
+                    color: 'rgba(99, 102, 241, 0.4)',
+                    lineWidth: 2,
+                    lineStyle: 0,
+                    axisLabelVisible: true,
+                    title: 'ТТ Низ',
+                });
+                
+                ttLines.push(topLine, bottomLine);
+            }
+        }
+
         // --- ЗАГРУЗКА СВЕЧЕЙ ---
         async function fetchCandles(interval, symbol) {
             document.getElementById('chart-status').innerText = "Загрузка...";
@@ -247,6 +321,8 @@
                     document.getElementById('chart-status').innerText = `Ошибка`; 
                     candleSeries.setData([]); return; 
                 }
+                
+                currentCandleData = data; // Сохраняем данные для "ТТ"
                 const lastPrice = data.length > 0 ? data[data.length - 1].close : 0;
                 let precision = lastPrice < 0.0001 ? 8 : lastPrice < 0.01 ? 6 : lastPrice < 1 ? 4 : 2;
                 let minMove = lastPrice < 0.0001 ? 0.00000001 : lastPrice < 0.01 ? 0.000001 : lastPrice < 1 ? 0.0001 : 0.01;
@@ -258,6 +334,10 @@
                 
                 document.getElementById('chart-status').innerText = `Обновлено`;
                 document.getElementById('current-price').innerText = `$${lastPrice.toFixed(precision).toLocaleString()}`;
+
+                // Если "ТТ" включен, перерисовываем зону под новую монету/таймфрейм
+                if (showTT) drawTT(currentCandleData);
+                
             } catch (error) { document.getElementById('chart-status').innerText = "Ошибка"; }
         }
 
@@ -288,7 +368,6 @@
             if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
             
             fetchCandles(currentInterval, currentSymbol);
-            // Если объемы включены, перерисовываем их для новой монеты
             if (showVolumes) loadVolumeProfile();
         }
 
@@ -298,7 +377,6 @@
             currentInterval = interval === '1h' ? '60' : interval === '4h' ? '240' : '1440';
             
             fetchCandles(currentInterval, currentSymbol);
-            // Если объемы включены, перерисовываем их для нового таймфрейма!
             if (showVolumes) loadVolumeProfile();
         }
 
