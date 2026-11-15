@@ -67,7 +67,6 @@
         </div>
 
         <div class="neon-border rounded-3xl p-4 mb-6">
-            <!-- Панель управления графиком -->
             <div class="flex justify-between items-center mb-4">
                 <div class="flex space-x-1 p-1 rounded-xl">
                     <button onclick="changeTimeframe('1h', this)" class="time-btn px-3 py-1.5 text-xs font-semibold rounded-lg active">1ч</button>
@@ -75,22 +74,17 @@
                     <button onclick="changeTimeframe('1d', this)" class="time-btn px-3 py-1.5 text-xs font-semibold rounded-lg">1д</button>
                 </div>
                 
-                <!-- Кнопки ТТ и Объемы -->
-                <div class="flex space-x-2">
-                    <button onclick="toggleTT()" id="tt-btn" class="bg-gray-800 text-indigo-400 border border-indigo-500/30 px-3 py-1.5 text-xs font-semibold rounded-lg transition active:scale-95">
-                        ТТ
-                    </button>
-                    <button onclick="toggleVolume()" id="vol-btn" class="bg-gray-800 text-cyan-400 border border-cyan-500/30 px-3 py-1.5 text-xs font-semibold rounded-lg transition active:scale-95">
-                        📊 Об.
-                    </button>
-                </div>
+                <button onclick="toggleVolume()" id="vol-btn" class="bg-gray-800 text-cyan-400 border border-cyan-500/30 px-3 py-1.5 text-xs font-semibold rounded-lg transition active:scale-95">
+                    📊 Объемы
+                </button>
             </div>
             
             <div id="chart-container" class="rounded-xl overflow-hidden"></div>
             
             <div class="mt-2 text-xs text-gray-400 flex justify-between">
-                <span class="text-indigo-400/70">ТТ = Боковик</span>
-                <span class="text-cyan-400/70">📊 POC</span>
+                <span>🟣 POC (Макс. объем)</span>
+                <span class="text-green-400">🟢 Цель Лонг</span>
+                <span class="text-red-400">🔴 Цель Шорт</span>
                 <span id="chart-status" class="text-cyan-300/50"></span>
             </div>
         </div>
@@ -100,7 +94,7 @@
                 <div class="w-2.5 h-2.5 bg-cyan-400 rounded-full ai-pulse"></div>
                 <h2 class="text-lg font-bold neon-text" id="ai-title">AI Аналитика</h2>
             </div>
-            <div class="text-sm text-gray-300 mb-4 leading-relaxed" id="ai-response">Нажми кнопку ниже для анализа.</div>
+            <div class="text-sm text-gray-300 mb-4 leading-relaxed" id="ai-response">Нажми кнопку ниже, чтобы получить анализ и цели по ликвидности.</div>
             <button onclick="analyzeMarket()" id="analyze-btn" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-3.5 px-4 rounded-2xl transition transform active:scale-95 shadow-lg">
                 🧠 Запустить анализ
             </button>
@@ -194,121 +188,51 @@
 
         let currentInterval = '60'; 
         let currentSymbol = 'BTC';
-        let currentCandleData = []; // Храним текущие свечи
 
-        // --- ЛОГИКА ОБЪЕМОВ ---
-        let priceLines = [];
+        // --- ЛИНИИ ИНДИКАТОРОВ ---
+        let volumeLines = [];
+        let targetLines = [];
         let showVolumes = false;
 
-        async function toggleVolume() {
+        // Объемы
+        function toggleVolume() {
             showVolumes = !showVolumes;
             const btn = document.getElementById('vol-btn');
             
             if (showVolumes) {
                 btn.classList.add('bg-cyan-500', 'text-black');
                 btn.classList.remove('text-cyan-400', 'bg-gray-800');
-                await loadVolumeProfile();
+                loadVolumeProfile();
             } else {
                 btn.classList.remove('bg-cyan-500', 'text-black');
                 btn.classList.add('text-cyan-400', 'bg-gray-800');
-                clearVolumeLines();
+                clearLines(volumeLines);
             }
         }
 
-        function clearVolumeLines() {
-            priceLines.forEach(line => candleSeries.removePriceLine(line));
-            priceLines = [];
+        function clearLines(linesArray) {
+            linesArray.forEach(line => candleSeries.removePriceLine(line));
+            linesArray.length = 0; // Очищаем массив
         }
 
         async function loadVolumeProfile() {
-            clearVolumeLines();
+            clearLines(volumeLines);
             if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
             
             try {
                 const res = await fetch(`${window.location.origin}/api/volume_profile?interval=${currentInterval}&symbol=${currentSymbol}`);
                 const data = await res.json();
-                
                 if (data.error) return;
 
                 data.forEach((node, index) => {
                     let color = index === 0 ? '#ff00ff' : (index === 1 ? '#00ff88' : '#00f0ff');
                     let width = index === 0 ? 2 : 1;
-                    
                     const line = candleSeries.createPriceLine({
-                        price: node.price,
-                        color: color,
-                        lineWidth: width,
-                        lineStyle: 0,
-                        axisLabelVisible: true,
-                        title: index === 0 ? 'POC' : '',
+                        price: node.price, color: color, lineWidth: width, lineStyle: 0, axisLabelVisible: true, title: index === 0 ? 'POC' : '',
                     });
-                    priceLines.push(line);
+                    volumeLines.push(line);
                 });
             } catch (e) { console.log("Ошибка объемов", e); }
-        }
-
-        // --- ЛОГИКА "ТТ" (БОКОВИК) ---
-        let ttLines = [];
-        let showTT = false;
-
-        function toggleTT() {
-            showTT = !showTT;
-            const btn = document.getElementById('tt-btn');
-            
-            if (showTT) {
-                btn.classList.add('bg-indigo-500', 'text-white');
-                btn.classList.remove('text-indigo-400', 'bg-gray-800');
-                drawTT(currentCandleData);
-            } else {
-                btn.classList.remove('bg-indigo-500', 'text-white');
-                btn.classList.add('text-indigo-400', 'bg-gray-800');
-                clearTT();
-            }
-        }
-
-        function clearTT() {
-            ttLines.forEach(line => candleSeries.removePriceLine(line));
-            ttLines = [];
-        }
-
-        function drawTT(data) {
-            clearTT();
-            if (!data || data.length < 30) return;
-
-            // Берем последние 30 свечей для анализа
-            const lastCandles = data.slice(-30);
-            const highs = lastCandles.map(c => c.high);
-            const lows = lastCandles.map(c => c.low);
-            
-            const maxHigh = Math.max(...highs);
-            const minLow = Math.min(...lows);
-            
-            const rangePercent = ((maxHigh - minLow) / minLow) * 100;
-            
-            // Если разброс цены за 30 свечей меньше 5% — это боковик
-            if (rangePercent < 5.0) {
-                // Верхняя граница (неяркая)
-                const topLine = candleSeries.createPriceLine({
-                    price: maxHigh,
-                    color: 'rgba(99, 102, 241, 0.4)', // Полупрозрачный индиго
-                    lineWidth: 2,
-                    lineStyle: 0,
-                    axisLabelVisible: true,
-                    title: 'ТТ Верх',
-                });
-                
-                // Нижняя граница (неяркая)
-                const bottomLine = candleSeries.createPriceLine({
-                    price: minLow,
-                    color: 'rgba(99, 102, 241, 0.4)',
-                    lineWidth: 2,
-                    lineStyle: 0,
-                    axisLabelVisible: true,
-                    title: 'ТТ Низ',
-                });
-                
-                ttLines.push(topLine, bottomLine);
-            }
         }
 
         // --- ЗАГРУЗКА СВЕЧЕЙ ---
@@ -321,8 +245,6 @@
                     document.getElementById('chart-status').innerText = `Ошибка`; 
                     candleSeries.setData([]); return; 
                 }
-                
-                currentCandleData = data; // Сохраняем данные для "ТТ"
                 const lastPrice = data.length > 0 ? data[data.length - 1].close : 0;
                 let precision = lastPrice < 0.0001 ? 8 : lastPrice < 0.01 ? 6 : lastPrice < 1 ? 4 : 2;
                 let minMove = lastPrice < 0.0001 ? 0.00000001 : lastPrice < 0.01 ? 0.000001 : lastPrice < 1 ? 0.0001 : 0.01;
@@ -334,10 +256,11 @@
                 
                 document.getElementById('chart-status').innerText = `Обновлено`;
                 document.getElementById('current-price').innerText = `$${lastPrice.toFixed(precision).toLocaleString()}`;
-
-                // Если "ТТ" включен, перерисовываем зону под новую монету/таймфрейм
-                if (showTT) drawTT(currentCandleData);
                 
+                // Очищаем цели при смене монеты, чтобы не путать
+                clearLines(targetLines);
+                
+                if (showVolumes) loadVolumeProfile();
             } catch (error) { document.getElementById('chart-status').innerText = "Ошибка"; }
         }
 
@@ -364,30 +287,57 @@
             currentSymbol = symbol;
             document.getElementById('header-symbol').innerText = `${symbol} / USD`;
             document.getElementById('ai-title').innerText = `AI Аналитика ${symbol}`;
-            document.getElementById('ai-response').innerHTML = `Нажми кнопку ниже, чтобы проанализировать <b>${symbol}</b>.`;
+            document.getElementById('ai-response').innerHTML = `Нажми кнопку ниже, чтобы получить анализ и цели по ликвидности.`;
             if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
             
             fetchCandles(currentInterval, currentSymbol);
-            if (showVolumes) loadVolumeProfile();
         }
 
         function changeTimeframe(interval, btn) {
             document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             currentInterval = interval === '1h' ? '60' : interval === '4h' ? '240' : '1440';
-            
             fetchCandles(currentInterval, currentSymbol);
-            if (showVolumes) loadVolumeProfile();
         }
 
+        // --- АНАЛИЗ И РИСОВАНИЕ ЦЕЛЕЙ ---
         async function analyzeMarket() {
             const btn = document.getElementById('analyze-btn');
             const responseDiv = document.getElementById('ai-response');
-            btn.innerText = "⏳ Анализируем..."; btn.classList.add('opacity-70');
+            btn.innerText = "⏳ Ищем цели..."; btn.classList.add('opacity-70');
+            
+            // Очищаем старые цели
+            clearLines(targetLines);
+            
             try {
                 const response = await fetch(`${window.location.origin}/api/analyze?interval=${currentInterval}&symbol=${currentSymbol}`);
                 const data = await response.json();
-                responseDiv.innerHTML = data.error ? `❌ Ошибка` : data.analysis;
+                
+                if (data.error) {
+                    responseDiv.innerHTML = `❌ Ошибка: ${data.error}`;
+                    return;
+                }
+                
+                responseDiv.innerHTML = data.analysis;
+
+                // Рисуем новые цели на графике
+                if (data.targets && data.targets.length > 0) {
+                    data.targets.forEach((target, index) => {
+                        const line = candleSeries.createPriceLine({
+                            price: target.price,
+                            color: data.color,
+                            lineWidth: 1,
+                            lineStyle: 2, // Пунктирная линия
+                            axisLabelVisible: true,
+                            title: target.label,
+                        });
+                        targetLines.push(line);
+                    });
+                    
+                    // Подстраиваем масштаб, чтобы цели были видны
+                    chart.timeScale().fitContent();
+                }
+                
             } catch (error) { responseDiv.innerHTML = "❌ Ошибка сети"; } 
             finally { btn.innerText = "🧠 Запустить анализ"; btn.classList.remove('opacity-70'); }
         }
@@ -413,10 +363,7 @@
                 });
                 const data = await res.json();
                 
-                if (data.error) {
-                    tg.showAlert("❌ " + data.error);
-                    return;
-                }
+                if (data.error) { tg.showAlert("❌ " + data.error); return; }
                 
                 if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
                 document.getElementById('alert-price').value = '';

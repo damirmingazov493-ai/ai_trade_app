@@ -128,55 +128,45 @@ async def handle_volume_profile(request):
     interval = request.query.get('interval', '60')
     symbol = request.query.get('symbol', 'BTC').upper()
     pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
-
     try:
         async with aiohttp.ClientSession() as session:
             url = f"https://api.kraken.com/0/public/OHLC?pair={pair}&interval={interval}"
             async with session.get(url) as response:
                 json_data = await response.json()
                 if json_data.get("error"): return web.json_response({"error": "Нет данных"}, status=404)
-
         result_key = [k for k in json_data["result"].keys() if k != "last"][0]
         raw_klines = json_data["result"][result_key]
-        
         highs = [float(k[2]) for k in raw_klines]
         lows = [float(k[3]) for k in raw_klines]
         max_price = max(highs)
         min_price = min(lows)
-        
         if max_price == min_price: return web.json_response([])
-            
         bins = 50
         bin_size = (max_price - min_price) / bins
         profile = {i: 0 for i in range(bins)}
-
         for k in raw_klines:
             c_high = float(k[2])
             c_low = float(k[3])
             vol = float(k[6])
-            
             start_bin = int((c_low - min_price) / bin_size)
             end_bin = int((c_high - min_price) / bin_size)
             if end_bin >= bins: end_bin = bins - 1
-            
             if start_bin == end_bin:
                 profile[start_bin] += vol
             else:
                 vol_per_bin = vol / (end_bin - start_bin + 1)
                 for b in range(start_bin, end_bin + 1):
                     profile[b] += vol_per_bin
-
         sorted_bins = sorted(profile.items(), key=lambda x: x[1], reverse=True)[:3]
-        
         levels = []
         for b_idx, b_vol in sorted_bins:
             price_level = min_price + (b_idx * bin_size) + (bin_size / 2)
             levels.append({"price": price_level, "volume": b_vol})
-            
         return web.json_response(levels)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
+# --- УМНЫЙ АНАЛИЗ С ПОИСКОМ ЦЕЛЕЙ (ЛИКВИДНОСТИ) ---
 async def handle_analyze(request):
     interval = request.query.get('interval', '60')
     symbol = request.query.get('symbol', 'BTC').upper()
@@ -189,29 +179,74 @@ async def handle_analyze(request):
                 if json_data.get("error"): return web.json_response({"error": "Не найдено"}, status=404)
 
         result_key = [k for k in json_data["result"].keys() if k != "last"][0]
-        closes = [float(k[4]) for k in json_data["result"][result_key]]
+        raw_klines = json_data["result"][result_key]
+        
+        closes = [float(k[4]) for k in raw_klines]
+        highs = [float(k[2]) for k in raw_klines]
+        lows = [float(k[3]) for k in raw_klines]
+        
         current_price = closes[-1]
         rsi = calculate_rsi(closes)
         sma20 = calculate_sma(closes, 20)
         f_price, f_sma = format_price(current_price), format_price(sma20)
 
-        if rsi < 30 and current_price < sma20:
-            verdict, color = f"📈 <b>{symbol}: Перепроданность.</b> Рекомендация: <b>LONG</b>.", "#00ff88"
-        elif rsi > 70 and current_price > sma20:
-            verdict, color = f"📉 <b>{symbol}: Перекупленность.</b> Рекомендация: <b>SHORT</b>.", "#ff3366"
-        elif current_price > sma20:
-            verdict, color = f"🚀 <b>{symbol}: Бычий тренд.</b> Рекомендация: <b>LONG</b>.", "#00ff88"
-        elif current_price < sma20:
-            verdict, color = f"⚠️ <b>{symbol}: Медвежий тренд.</b> Рекомендация: <b>SHORT</b>.", "#ff3366"
-        else:
-            verdict, color = f"⚖️ <b>{symbol}: Флэт.</b> Лучше подождать.", "#00f0ff"
+        trend = 'FLAT'
+        color = "#00f0ff"
+        verdict = f"⚖️ <b>{symbol}: Флэт.</b> Лучше подождать."
+        targets = []
+
+        # ЛОГИКА ОПРЕДЕЛЕНИЯ ЦЕЛЕЙ (где стоят стопы)
+        # Берем локальные максимумы и минимумы за последние 20 и 50 свечей
+        recent_highs = sorted(highs[-20:], reverse=True)
+        recent_lows = sorted(lows[-20:])
+        
+        macro_highs = sorted(highs[-50:], reverse=True)
+        macro_lows = sorted(lows[-50:])
+
+        if (rsi < 40 and current_price < sma20) or (current_price < sma20 * 0.98):
+            trend = 'SHORT'
+            color = "#ff3366"
+            verdict = f"📉 <b>{symbol}: Медвежий тренд.</b> Цена ниже MA. Охота за стопами внизу."
+            
+            # Для ШОРТА цели — это локальные минимумы (где стоят стопы лонгистов)
+            # Цель 1: Ближайший сильный минимум
+            target1 = recent_lows[0] if len(recent_lows) > 0 else current_price * 0.98
+            # Цель 2: Более глубокий минимум
+            target2 = macro_lows[0] if len(macro_lows) > 0 else current_price * 0.95
+            
+            if target1 >= current_price: target1 = current_price * 0.98
+            if target2 >= target1: target2 = target1 * 0.95
+            
+            targets.append({"price": target1, "label": "Цель 1 (Стопы)"})
+            targets.append({"price": target2, "label": "Цель 2 (Дно)"})
+
+        elif (rsi > 60 and current_price > sma20) or (current_price > sma20 * 1.02):
+            trend = 'LONG'
+            color = "#00ff88"
+            verdict = f"🚀 <b>{symbol}: Бычий тренд.</b> Цена выше MA. Охота за стопами вверху."
+            
+            # Для ЛОНГА цели — это локальные максимумы (где стоят стопы шортистов)
+            target1 = recent_highs[0] if len(recent_highs) > 0 else current_price * 1.02
+            target2 = macro_highs[0] if len(macro_highs) > 0 else current_price * 1.05
+            
+            if target1 <= current_price: target1 = current_price * 1.02
+            if target2 <= target1: target2 = target1 * 1.05
+            
+            targets.append({"price": target1, "label": "Цель 1 (Стопы)"})
+            targets.append({"price": target2, "label": "Цель 2 (Пик)"})
 
         analysis_html = f"""
             <div style="color: {color}; margin-bottom: 8px; font-size: 16px;">{verdict}</div>
             <div style="font-size: 12px; color: #9ca3af; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
                 📊 RSI: <b>{rsi:.2f}</b> | MA: <b>${f_sma}</b><br>💰 Цена: <b>${f_price}</b>
             </div>"""
-        return web.json_response({"analysis": analysis_html})
+            
+        return web.json_response({
+            "analysis": analysis_html,
+            "trend": trend,
+            "targets": targets,
+            "color": color
+        })
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
@@ -229,7 +264,6 @@ async def handle_create_alert(request):
     if not supabase: return web.json_response({"error": "База не подключена"}, status=500)
     data = await request.json()
     symbol, target_price, condition, user_id = data.get('symbol', '').upper(), float(data.get('target_price')), data.get('condition'), int(data.get('user_id'))
-
     pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
     current_price = 0
     try:
@@ -241,7 +275,6 @@ async def handle_create_alert(request):
                     result_key = [k for k in tick_data["result"].keys() if k != "last"][0]
                     current_price = float(tick_data["result"][result_key]["c"][0])
     except: pass
-
     try:
         supabase.table("alerts").insert({
             "user_id": user_id, "symbol": symbol, "target_price": target_price,
@@ -282,7 +315,7 @@ async def cmd_start(message: types.Message):
     base_url = os.getenv("WEBAPP_URL", "https://google.com")
     web_app_url = f"{base_url}?v={int(time.time())}"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🚀 Открыть Терминал", web_app=WebAppInfo(url=web_app_url))]])
-    await message.answer("Терминал обновлен! Теперь объемы зависят от таймфрейма.", reply_markup=keyboard)
+    await message.answer("Терминал обновлен! ИИ теперь показывает цели.", reply_markup=keyboard)
 
 async def main():
     await start_web_server()
