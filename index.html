@@ -287,16 +287,13 @@
             finally { btn.innerText = "🧠 Запустить анализ"; btn.classList.remove('opacity-70'); }
         }
 
-        // --- ИСПРАВЛЕННЫЙ АНАЛИЗ СТАКАНА ---
+        // --- АНАЛИЗ СТАКАНА (ORDER BOOK) ---
         async function loadOrderBook() {
             document.getElementById('ob-price').innerText = "Загрузка...";
             try {
                 const res = await fetch(`${window.location.origin}/api/orderbook?symbol=${currentSymbol}`);
                 
-                if (!res.ok) {
-                    throw new Error("Ошибка сервера");
-                }
-                
+                if (!res.ok) throw new Error("Ошибка сервера");
                 const data = await res.json();
                 
                 if (data.error) {

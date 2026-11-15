@@ -167,22 +167,24 @@ async def handle_analyze(request):
         return web.json_response({"analysis": analysis_html, "trend": trend, "targets": targets, "color": color})
     except Exception as e: return web.json_response({"error": str(e)}, status=500)
 
-# --- ИСПРАВЛЕННЫЙ API ДЛЯ СТАКАНА (ORDER BOOK) ---
+# --- API ДЛЯ СТАКАНА (KRAKEN + BINANCE OI) ---
 async def handle_orderbook(request):
     symbol = request.query.get('symbol', 'BTC').upper()
     pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
+    binance_symbol = f"{symbol}USDT" # Для фьючерсов Binance
+    
     try:
+        # 1. Стакан с Kraken
         async with aiohttp.ClientSession() as session:
-            url = f"https://api.kraken.com/0/public/Depth?pair={pair}&count=100"
-            async with session.get(url) as response:
+            url_kraken = f"https://api.kraken.com/0/public/Depth?pair={pair}&count=100"
+            async with session.get(url_kraken) as response:
                 json_data = await response.json()
                 if json_data.get("error"): 
-                    return web.json_response({"error": "Нет данных от биржи"}, status=404)
+                    return web.json_response({"error": "Нет данных стакана"}, status=404)
 
         result_key = [k for k in json_data["result"].keys() if k != "last"][0]
         book = json_data["result"][result_key]
         
-        # Kraken возвращает [price, volume, timestamp]. Берем только первые два
         bids = [[float(item[0]), float(item[1])] for item in book["bids"]]
         asks = [[float(item[0]), float(item[1])] for item in book["asks"]]
         
@@ -204,7 +206,21 @@ async def handle_orderbook(request):
         largest_bid = max(bids, key=lambda x: x[1]) if bids else [0, 0]
         largest_ask = max(asks, key=lambda x: x[1]) if asks else [0, 0]
         
-        oi_change = round(random.uniform(-15.0, 15.0), 1)
+        # 2. Реальный Открытый интерес с Binance Futures
+        oi_change = 0.0
+        try:
+            async with aiohttp.ClientSession() as session:
+                url_binance = f"https://fapi.binance.com/futures/data/openInterestHist?symbol={binance_symbol}&period=1h&limit=2"
+                async with session.get(url_binance) as oi_response:
+                    if oi_response.status == 200:
+                        oi_data = await oi_response.json()
+                        if len(oi_data) == 2:
+                            oi_old = float(oi_data[0]["sumOpenInterest"])
+                            oi_new = float(oi_data[1]["sumOpenInterest"])
+                            oi_change = round(((oi_new - oi_old) / oi_old) * 100, 1)
+        except Exception as e:
+            print(f"Ошибка получения OI с Binance: {e}")
+            oi_change = 0.0
         
         return web.json_response({
             "current_price": mid_price,
@@ -276,7 +292,7 @@ async def start_web_server():
 async def cmd_start(message: types.Message):
     web_app_url = f"{os.getenv('WEBAPP_URL', 'https://google.com')}?v={int(time.time())}"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🚀 Открыть Терминал", web_app=WebAppInfo(url=web_app_url))]])
-    await message.answer("Приложение обновлено! Добавлен анализ стакана.", reply_markup=keyboard)
+    await message.answer("Приложение обновлено! Реальный Открытый интерес (OI).", reply_markup=keyboard)
 
 async def main():
     await start_web_server()
