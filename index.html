@@ -54,7 +54,7 @@
         </div>
 
         <div class="flex mb-4">
-            <input type="text" id="coin-search" placeholder="Введите тикер (PEPE, TON...)" class="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-cyan-500/30 focus:outline-none focus:border-cyan-500 uppercase placeholder-gray-500">
+            <input type="text" id="coin-search" placeholder="Введите тикер" class="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-cyan-500/30 focus:outline-none focus:border-cyan-500 uppercase placeholder-gray-500">
             <button onclick="searchCoin()" class="ml-2 bg-gradient-to-r from-cyan-500 to-blue-600 px-5 rounded-xl font-bold shadow-lg active:scale-95 transition">🔍</button>
         </div>
 
@@ -62,9 +62,7 @@
             <button onclick="changeCoin('BTC', this)" class="coin-btn active px-4 py-2 rounded-xl text-sm whitespace-nowrap">BTC</button>
             <button onclick="changeCoin('ETH', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">ETH</button>
             <button onclick="changeCoin('SOL', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">SOL</button>
-            <button onclick="changeCoin('XRP', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">XRP</button>
             <button onclick="changeCoin('DOGE', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">DOGE</button>
-            <button onclick="changeCoin('TON', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">TON</button>
             <button onclick="changeCoin('PEPE', this)" class="coin-btn px-4 py-2 rounded-xl text-sm whitespace-nowrap">PEPE</button>
         </div>
 
@@ -75,9 +73,17 @@
                     <button onclick="changeTimeframe('4h', this)" class="time-btn px-4 py-1.5 text-xs font-semibold rounded-lg">4ч</button>
                     <button onclick="changeTimeframe('1d', this)" class="time-btn px-4 py-1.5 text-xs font-semibold rounded-lg">1д</button>
                 </div>
-                <span class="text-xs text-cyan-300/50" id="chart-status">Загрузка...</span>
+                <!-- Кнопка объемов -->
+                <button onclick="toggleVolume()" id="vol-btn" class="bg-gray-800 text-cyan-400 border border-cyan-500/30 px-3 py-1.5 text-xs font-semibold rounded-lg transition active:scale-95">
+                    📊 Объемы
+                </button>
             </div>
             <div id="chart-container" class="rounded-xl overflow-hidden"></div>
+            <div class="mt-2 text-xs text-gray-400 flex justify-between">
+                <span>🟣 POC (Макс. объем)</span>
+                <span>🟢/🔵 Сильные уровни</span>
+                <span id="chart-status" class="text-cyan-300/50"></span>
+            </div>
         </div>
 
         <div class="neon-border rounded-3xl p-5 mb-6">
@@ -180,6 +186,58 @@
         let currentInterval = '60'; 
         let currentSymbol = 'BTC';
 
+        // --- ЛОГИКА ОБЪЕМОВ ---
+        let priceLines = [];
+        let showVolumes = false;
+
+        async function toggleVolume() {
+            showVolumes = !showVolumes;
+            const btn = document.getElementById('vol-btn');
+            
+            if (showVolumes) {
+                btn.classList.add('bg-cyan-500', 'text-black');
+                btn.classList.remove('text-cyan-400', 'bg-gray-800');
+                await loadVolumeProfile();
+            } else {
+                btn.classList.remove('bg-cyan-500', 'text-black');
+                btn.classList.add('text-cyan-400', 'bg-gray-800');
+                clearVolumeLines();
+            }
+        }
+
+        function clearVolumeLines() {
+            priceLines.forEach(line => candleSeries.removePriceLine(line));
+            priceLines = [];
+        }
+
+        async function loadVolumeProfile() {
+            clearVolumeLines();
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            
+            try {
+                const res = await fetch(`${window.location.origin}/api/volume_profile?interval=${currentInterval}&symbol=${currentSymbol}`);
+                const data = await res.json();
+                
+                if (data.error) return;
+
+                data.forEach((node, index) => {
+                    let color = index === 0 ? '#ff00ff' : (index === 1 ? '#00ff88' : '#00f0ff');
+                    let width = index === 0 ? 2 : 1;
+                    
+                    const line = candleSeries.createPriceLine({
+                        price: node.price,
+                        color: color,
+                        lineWidth: width,
+                        lineStyle: 0,
+                        axisLabelVisible: true,
+                        title: index === 0 ? 'POC' : '',
+                    });
+                    priceLines.push(line);
+                });
+            } catch (e) { console.log("Ошибка объемов", e); }
+        }
+
+        // --- ЗАГРУЗКА СВЕЧЕЙ ---
         async function fetchCandles(interval, symbol) {
             document.getElementById('chart-status').innerText = "Загрузка...";
             try {
@@ -228,14 +286,20 @@
             document.getElementById('ai-title').innerText = `AI Аналитика ${symbol}`;
             document.getElementById('ai-response').innerHTML = `Нажми кнопку ниже, чтобы проанализировать <b>${symbol}</b>.`;
             if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+            
             fetchCandles(currentInterval, currentSymbol);
+            // Если объемы включены, перерисовываем их для новой монеты
+            if (showVolumes) loadVolumeProfile();
         }
 
         function changeTimeframe(interval, btn) {
             document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             currentInterval = interval === '1h' ? '60' : interval === '4h' ? '240' : '1440';
+            
             fetchCandles(currentInterval, currentSymbol);
+            // Если объемы включены, перерисовываем их для нового таймфрейма!
+            if (showVolumes) loadVolumeProfile();
         }
 
         async function analyzeMarket() {

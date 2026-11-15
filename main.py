@@ -78,12 +78,9 @@ async def check_alerts():
                                     
                                     target = float(alert['target_price'])
                                     condition = alert['condition']
-                                    # Если last_price пустой, берем текущую цену
-                                    last_price = float(alert.get('last_price') or current_price) 
+                                    last_price = float(alert.get('last_price') or current_price)
                                     
                                     triggered = False
-                                    
-                                    # ЛОГИКА ПЕРЕСЕЧЕНИЯ
                                     if condition == 'above' and last_price < target and current_price >= target:
                                         triggered = True
                                     elif condition == 'below' and last_price > target and current_price <= target:
@@ -97,10 +94,8 @@ async def check_alerts():
                                             f"Ваша цель: {condition} ${format_price(target)}"
                                         )
                                         await bot.send_message(chat_id=alert['user_id'], text=text, parse_mode="HTML")
-                                        # Отключаем после срабатывания
                                         supabase.table("alerts").update({"is_active": False}).eq("id", alert['id']).execute()
                                     else:
-                                        # Обновляем last_price для следующей итерации
                                         supabase.table("alerts").update({"last_price": current_price}).eq("id", alert['id']).execute()
             except Exception as e:
                 print(f"Ошибка сканера: {e}")
@@ -126,6 +121,59 @@ async def handle_candles(request):
                 raw_klines = json_data["result"][result_key]
                 candles = [{"time": int(k[0]), "open": float(k[1]), "high": float(k[2]), "low": float(k[3]), "close": float(k[4])} for k in raw_klines]
                 return web.json_response(candles)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+async def handle_volume_profile(request):
+    interval = request.query.get('interval', '60')
+    symbol = request.query.get('symbol', 'BTC').upper()
+    pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = f"https://api.kraken.com/0/public/OHLC?pair={pair}&interval={interval}"
+            async with session.get(url) as response:
+                json_data = await response.json()
+                if json_data.get("error"): return web.json_response({"error": "Нет данных"}, status=404)
+
+        result_key = [k for k in json_data["result"].keys() if k != "last"][0]
+        raw_klines = json_data["result"][result_key]
+        
+        highs = [float(k[2]) for k in raw_klines]
+        lows = [float(k[3]) for k in raw_klines]
+        max_price = max(highs)
+        min_price = min(lows)
+        
+        if max_price == min_price: return web.json_response([])
+            
+        bins = 50
+        bin_size = (max_price - min_price) / bins
+        profile = {i: 0 for i in range(bins)}
+
+        for k in raw_klines:
+            c_high = float(k[2])
+            c_low = float(k[3])
+            vol = float(k[6])
+            
+            start_bin = int((c_low - min_price) / bin_size)
+            end_bin = int((c_high - min_price) / bin_size)
+            if end_bin >= bins: end_bin = bins - 1
+            
+            if start_bin == end_bin:
+                profile[start_bin] += vol
+            else:
+                vol_per_bin = vol / (end_bin - start_bin + 1)
+                for b in range(start_bin, end_bin + 1):
+                    profile[b] += vol_per_bin
+
+        sorted_bins = sorted(profile.items(), key=lambda x: x[1], reverse=True)[:3]
+        
+        levels = []
+        for b_idx, b_vol in sorted_bins:
+            price_level = min_price + (b_idx * bin_size) + (bin_size / 2)
+            levels.append({"price": price_level, "volume": b_vol})
+            
+        return web.json_response(levels)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
@@ -180,13 +228,8 @@ async def handle_get_alerts(request):
 async def handle_create_alert(request):
     if not supabase: return web.json_response({"error": "База не подключена"}, status=500)
     data = await request.json()
-    
-    symbol = data.get('symbol', '').upper()
-    target_price = float(data.get('target_price'))
-    condition = data.get('condition')
-    user_id = int(data.get('user_id'))
+    symbol, target_price, condition, user_id = data.get('symbol', '').upper(), float(data.get('target_price')), data.get('condition'), int(data.get('user_id'))
 
-    # Получаем текущую цену, чтобы запомнить её при создании
     pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
     current_price = 0
     try:
@@ -201,12 +244,8 @@ async def handle_create_alert(request):
 
     try:
         supabase.table("alerts").insert({
-            "user_id": user_id,
-            "symbol": symbol,
-            "target_price": target_price,
-            "condition": condition,
-            "is_active": True,
-            "last_price": current_price 
+            "user_id": user_id, "symbol": symbol, "target_price": target_price,
+            "condition": condition, "is_active": True, "last_price": current_price 
         }).execute()
         return web.json_response({"status": "ok"})
     except Exception as e:
@@ -225,6 +264,7 @@ async def start_web_server():
     app = web.Application()
     app.router.add_get('/', handle_index)
     app.router.add_get('/api/candles', handle_candles)
+    app.router.add_get('/api/volume_profile', handle_volume_profile)
     app.router.add_get('/api/analyze', handle_analyze)
     app.router.add_get('/api/alerts', handle_get_alerts)
     app.router.add_post('/api/alerts', handle_create_alert)
@@ -242,7 +282,7 @@ async def cmd_start(message: types.Message):
     base_url = os.getenv("WEBAPP_URL", "https://google.com")
     web_app_url = f"{base_url}?v={int(time.time())}"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🚀 Открыть Терминал", web_app=WebAppInfo(url=web_app_url))]])
-    await message.answer("Приложение обновлено! Логика уведомлений исправлена.", reply_markup=keyboard)
+    await message.answer("Терминал обновлен! Теперь объемы зависят от таймфрейма.", reply_markup=keyboard)
 
 async def main():
     await start_web_server()
