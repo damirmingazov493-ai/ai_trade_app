@@ -10,26 +10,25 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
-        /* Светлый сиренево-розовый фон */
+        /* Светлый сиренево-розовый фон на всю страницу */
         body { 
             background: linear-gradient(135deg, #e6e2fb 0%, #f3e8ff 100%);
             color: #4a4a68; 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             -webkit-tap-highlight-color: transparent; 
-            padding-bottom: 80px; 
+            padding-bottom: 100px; /* Отступ, чтобы контент не прятался за меню */
             min-height: 100vh;
+            margin: 0;
         }
         
-        /* Эффект матового стекла для карточек */
         .glass { 
-            background: rgba(255, 255, 255, 0.65); 
+            background: rgba(255, 255, 255, 0.7); 
             backdrop-filter: blur(16px); 
-            border: 1px solid rgba(255, 255, 255, 0.8); 
+            border: 1px solid rgba(255, 255, 255, 0.9); 
             box-shadow: 0 8px 32px rgba(100, 80, 150, 0.1);
             border-radius: 24px;
         }
         
-        /* Стили для кнопок */
         .pill-btn { transition: all 0.2s; border-radius: 12px; }
         .pill-btn.active { background-color: #9b81f7; color: white; box-shadow: 0 4px 12px rgba(155, 129, 247, 0.4); }
         .pill-btn:not(.active) { background-color: rgba(255,255,255,0.6); color: #71649c; }
@@ -38,46 +37,50 @@
         .coin-btn.active { background-color: #e0d4ff; border-color: #9b81f7; color: #6b46c1; font-weight: bold; }
         .coin-btn:not(.active) { background-color: rgba(255,255,255,0.5); color: #71649c; }
         
-        /* Прячем скроллбар */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Контейнер для графика с картинкой гор */
+        /* Контейнер для графика с картинкой гор по прямой ссылке */
         #chart-container { 
             width: 100%; 
             height: 320px; 
             border-radius: 20px;
             overflow: hidden;
-            /* Подключаем твою картинку с горами */
-            background-image: url(''https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=1000&auto=format&fit=crop'); 
+            /* Ссылка на красивую картинку гор в тумане */
+            background-image: url('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=1000&auto=format&fit=crop'); 
             background-size: cover;
             background-position: center;
             position: relative;
             box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
         }
         
-        /* Легкое затемнение поверх картинки, чтобы график было лучше видно */
+        /* Легкая дымка поверх гор для читаемости графика */
         #chart-container::before {
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(255, 255, 255, 0.2); 
+            background: rgba(255, 255, 255, 0.15); 
             pointer-events: none;
             z-index: 1;
         }
 
-        /* Нижнее меню */
+        /* Нижнее меню - зафиксировано намертво */
         .bottom-nav { 
-            position: fixed; bottom: 0; left: 0; right: 0; 
-            background: rgba(255, 255, 255, 0.85); 
+            position: fixed; 
+            bottom: 0; 
+            left: 0; 
+            right: 0; 
+            background: rgba(255, 255, 255, 0.95); 
             backdrop-filter: blur(20px); 
             border-top: 1px solid rgba(255, 255, 255, 0.5); 
-            display: flex; justify-content: space-around; 
-            padding: 12px 0 20px 0; z-index: 50; 
+            display: flex; 
+            justify-content: space-around; 
+            padding: 12px 0 20px 0; 
+            z-index: 9999; /* Поверх всего */
             border-radius: 30px 30px 0 0;
-            box-shadow: 0 -4px 20px rgba(100, 80, 150, 0.05);
+            box-shadow: 0 -4px 20px rgba(100, 80, 150, 0.08);
         }
-        .nav-item { display: flex; flex-direction: column; align-items: center; color: #a09ab8; font-size: 11px; font-weight: 500; transition: 0.3s; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; color: #a09ab8; font-size: 11px; font-weight: 600; transition: 0.3s; cursor: pointer;}
         .nav-item.active { color: #8b5cf6; }
         .nav-icon { font-size: 22px; margin-bottom: 4px; }
         
@@ -90,7 +93,6 @@
 
     <!-- ================= ВКЛАДКА 1: ТЕРМИНАЛ ================= -->
     <div id="view-terminal" class="tab-content active">
-        <!-- Шапка -->
         <div class="flex justify-between items-center mb-6">
             <div>
                 <h1 class="text-3xl font-extrabold tracking-tight text-slate-800" id="header-symbol">BTC / USD</h1>
@@ -103,15 +105,13 @@
             </button>
         </div>
 
-        <!-- Поиск -->
         <div class="flex mb-5">
-            <input type="text" id="coin-search" placeholder="Поиск монеты (PEPE...)" class="w-full glass px-5 py-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-300 placeholder-slate-400 uppercase font-medium">
+            <input type="text" id="coin-search" placeholder="ПОИСК МОНЕТЫ" class="w-full glass px-5 py-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-300 placeholder-slate-400 uppercase font-medium">
             <button onclick="searchCoin()" class="ml-3 w-12 h-12 bg-purple-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 active:scale-95 transition">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             </button>
         </div>
 
-        <!-- Быстрый выбор монет -->
         <div class="flex space-x-2 overflow-x-auto pb-2 mb-5 scrollbar-hide">
             <button onclick="changeCoin('BTC', this)" class="coin-btn active px-4 py-2 text-sm whitespace-nowrap shadow-sm">BTC</button>
             <button onclick="changeCoin('ETH', this)" class="coin-btn px-4 py-2 text-sm whitespace-nowrap shadow-sm">ETH</button>
@@ -120,7 +120,6 @@
             <button onclick="changeCoin('PEPE', this)" class="coin-btn px-4 py-2 text-sm whitespace-nowrap shadow-sm">PEPE</button>
         </div>
 
-        <!-- Блок Графика -->
         <div class="glass p-5 mb-6">
             <div class="flex justify-between items-center mb-4 relative z-10">
                 <div class="flex space-x-1 bg-white/50 p-1 rounded-xl">
@@ -133,7 +132,6 @@
                 </button>
             </div>
             
-            <!-- Сам график с горами на фоне -->
             <div id="chart-container"></div>
             
             <div class="mt-3 text-xs text-slate-500 flex justify-between font-medium relative z-10">
@@ -144,9 +142,7 @@
             </div>
         </div>
 
-        <!-- Блок ИИ -->
         <div class="glass p-6 mb-6 relative overflow-hidden">
-            <div class="absolute -top-10 -right-10 w-32 h-32 bg-purple-400 rounded-full mix-blend-multiply filter blur-2xl opacity-20 animate-blob"></div>
             <div class="flex items-center space-x-2 mb-3 relative z-10">
                 <div class="w-2.5 h-2.5 bg-purple-500 rounded-full animate-pulse"></div>
                 <h2 class="text-lg font-bold text-slate-800" id="ai-title">AI Аналитика</h2>
@@ -240,38 +236,18 @@
             if (tabId === 'tools') loadToolsData();
         }
 
-        // --- ГРАФИК (Светлая тема) ---
         const chartContainer = document.getElementById('chart-container');
         const chart = LightweightCharts.createChart(chartContainer, {
-            width: chartContainer.clientWidth, 
-            height: 320,
-            layout: { 
-                background: { type: 'solid', color: 'transparent' }, // Прозрачный фон, чтобы видеть горы
-                textColor: '#475569' // Темно-серый текст для читаемости на фоне гор
-            },
-            grid: { 
-                vertLines: { color: 'rgba(0, 0, 0, 0.05)' }, 
-                horzLines: { color: 'rgba(0, 0, 0, 0.05)' } 
-            },
-            rightPriceScale: { 
-                borderColor: 'rgba(0, 0, 0, 0.1)' 
-            },
-            timeScale: { 
-                borderColor: 'rgba(0, 0, 0, 0.1)' 
-            }
+            width: chartContainer.clientWidth, height: 320,
+            layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#334155' },
+            grid: { vertLines: { color: 'rgba(0, 0, 0, 0.06)' }, horzLines: { color: 'rgba(0, 0, 0, 0.06)' } },
+            rightPriceScale: { borderColor: 'rgba(0, 0, 0, 0.1)' },
+            timeScale: { borderColor: 'rgba(0, 0, 0, 0.1)' }
         });
-        const candleSeries = chart.addCandlestickSeries({ 
-            upColor: '#10b981', // Зеленый
-            downColor: '#f43f5e', // Красный
-            borderVisible: false, 
-            wickUpColor: '#10b981', 
-            wickDownColor: '#f43f5e' 
-        });
+        const candleSeries = chart.addCandlestickSeries({ upColor: '#10b981', downColor: '#f43f5e', borderVisible: false, wickUpColor: '#10b981', wickDownColor: '#f43f5e' });
 
         let currentInterval = '60'; 
         let currentSymbol = 'BTC';
-
-        // --- ЛИНИИ ---
         let volumeLines = [];
         let targetLines = [];
         let showVolumes = false;
@@ -279,14 +255,11 @@
         function toggleVolume() {
             showVolumes = !showVolumes;
             const btn = document.getElementById('vol-btn');
-            
             if (showVolumes) {
-                btn.classList.add('bg-purple-500', 'text-white');
-                btn.classList.remove('text-purple-600', 'bg-white/60');
+                btn.classList.add('bg-purple-500', 'text-white'); btn.classList.remove('text-purple-600', 'bg-white/60');
                 loadVolumeProfile();
             } else {
-                btn.classList.remove('bg-purple-500', 'text-white');
-                btn.classList.add('text-purple-600', 'bg-white/60');
+                btn.classList.remove('bg-purple-500', 'text-white'); btn.classList.add('text-purple-600', 'bg-white/60');
                 clearLines(volumeLines);
             }
         }
@@ -299,12 +272,10 @@
         async function loadVolumeProfile() {
             clearLines(volumeLines);
             if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-            
             try {
                 const res = await fetch(`${window.location.origin}/api/volume_profile?interval=${currentInterval}&symbol=${currentSymbol}`);
                 const data = await res.json();
                 if (data.error) return;
-
                 data.forEach((node, index) => {
                     let color = index === 0 ? '#a855f7' : (index === 1 ? '#10b981' : '#3b82f6');
                     let width = index === 0 ? 2 : 1;
@@ -371,7 +342,7 @@
         }
 
         function changeTimeframe(interval, btn) {
-            document.querySelectorAll('.time-btn, .pill-btn').forEach(b => b.classList.remove('active')); // Поддержка обоих классов
+            document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             currentInterval = interval === '1h' ? '60' : interval === '4h' ? '240' : '1440';
             fetchCandles(currentInterval, currentSymbol);
@@ -381,29 +352,16 @@
             const btn = document.getElementById('analyze-btn');
             const responseDiv = document.getElementById('ai-response');
             btn.innerText = "⏳ Ищем цели..."; btn.classList.add('opacity-70');
-            
             clearLines(targetLines);
-            
             try {
                 const response = await fetch(`${window.location.origin}/api/analyze?interval=${currentInterval}&symbol=${currentSymbol}`);
                 const data = await response.json();
-                
-                if (data.error) {
-                    responseDiv.innerHTML = `❌ Ошибка: ${data.error}`;
-                    return;
-                }
-                
+                if (data.error) { responseDiv.innerHTML = `❌ Ошибка: ${data.error}`; return; }
                 responseDiv.innerHTML = data.analysis;
-
                 if (data.targets && data.targets.length > 0) {
                     data.targets.forEach((target, index) => {
                         const line = candleSeries.createPriceLine({
-                            price: target.price,
-                            color: data.color,
-                            lineWidth: 1,
-                            lineStyle: 2, 
-                            axisLabelVisible: true,
-                            title: target.label,
+                            price: target.price, color: data.color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: target.label,
                         });
                         targetLines.push(line);
                     });
@@ -413,7 +371,6 @@
             finally { btn.innerText = "🧠 Запустить анализ"; btn.classList.remove('opacity-70'); }
         }
 
-        // --- УВЕДОМЛЕНИЯ ---
         function goToCreateAlert() {
             document.getElementById('alert-symbol').value = currentSymbol;
             switchTab('alerts', document.querySelectorAll('.nav-item')[1]);
@@ -424,18 +381,14 @@
             const symbol = document.getElementById('alert-symbol').value.trim().toUpperCase();
             const price = parseFloat(document.getElementById('alert-price').value);
             const condition = document.getElementById('alert-condition').value;
-
             if (!symbol || isNaN(price)) return alert("Заполните все поля!");
-
             try {
                 const res = await fetch(`${window.location.origin}/api/alerts`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: userId, symbol: symbol, target_price: price, condition: condition })
                 });
                 const data = await res.json();
-                
                 if (data.error) { tg.showAlert("❌ " + data.error); return; }
-                
                 if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
                 document.getElementById('alert-price').value = '';
                 loadAlerts();
@@ -445,16 +398,13 @@
         async function loadAlerts() {
             const list = document.getElementById('alerts-list');
             if (!userId) { list.innerHTML = "Нет ID пользователя"; return; }
-            
             try {
                 const res = await fetch(`${window.location.origin}/api/alerts?user_id=${userId}`);
                 const alerts = await res.json();
-                
                 if (alerts.length === 0) {
                     list.innerHTML = `<div class="text-center text-slate-400 py-10">У вас пока нет активных уведомлений</div>`;
                     return;
                 }
-
                 list.innerHTML = alerts.map(a => {
                     const condText = a.condition === 'above' ? '📈 Выше' : '📉 Ниже';
                     return `
@@ -477,7 +427,6 @@
             } catch(e) {}
         }
 
-        // --- ИНСТРУМЕНТЫ ---
         async function loadToolsData() {
             document.getElementById('tools-symbol').innerText = currentSymbol;
             document.getElementById('tool-signal').innerText = "Анализ...";
@@ -489,7 +438,6 @@
                     const maMatch = data.analysis.match(/MA: <b>([^<]+)<\/b>/);
                     if (rsiMatch) document.getElementById('tool-rsi').innerText = rsiMatch[1];
                     if (maMatch) document.getElementById('tool-ma').innerText = maMatch[1];
-                    
                     const sig = document.getElementById('tool-signal');
                     if (data.analysis.includes("Бычий") || data.analysis.includes("Перепроданность")) {
                         sig.innerText = "Покупать (LONG)"; sig.className = "text-xl font-extrabold text-emerald-500";
