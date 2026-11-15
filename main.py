@@ -20,8 +20,10 @@ dp = Dispatcher()
 
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("✅ База данных Supabase подключена")
 except Exception as e:
     supabase = None
+    print(f"❌ Ошибка БД: {e}")
 
 KRAKEN_PAIRS = {
     "BTC": "XBTUSD", "ETH": "ETHUSD", "SOL": "SOLUSD", "XRP": "XRPUSD",
@@ -53,7 +55,9 @@ def calculate_sma(prices, period=20):
     if len(prices) < period: return prices[-1] if prices else 0
     return sum(prices[-period:]) / period
 
+# --- ФОНОВЫЙ СКАНЕР УВЕДОМЛЕНИЙ ---
 async def check_alerts():
+    print("🚀 Сканер уведомлений запущен...")
     while True:
         if supabase:
             try:
@@ -163,27 +167,30 @@ async def handle_analyze(request):
         return web.json_response({"analysis": analysis_html, "trend": trend, "targets": targets, "color": color})
     except Exception as e: return web.json_response({"error": str(e)}, status=500)
 
-# --- НОВЫЙ API ДЛЯ СТАКАНА (ORDER BOOK) ---
+# --- ИСПРАВЛЕННЫЙ API ДЛЯ СТАКАНА (ORDER BOOK) ---
 async def handle_orderbook(request):
     symbol = request.query.get('symbol', 'BTC').upper()
     pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
     try:
         async with aiohttp.ClientSession() as session:
-            # Берем стакан глубиной 100 заявок
             url = f"https://api.kraken.com/0/public/Depth?pair={pair}&count=100"
             async with session.get(url) as response:
                 json_data = await response.json()
-                if json_data.get("error"): return web.json_response({"error": "Нет данных"}, status=404)
+                if json_data.get("error"): 
+                    return web.json_response({"error": "Нет данных от биржи"}, status=404)
 
         result_key = [k for k in json_data["result"].keys() if k != "last"][0]
         book = json_data["result"][result_key]
         
-        bids = [[float(p), float(v)] for p, v in book["bids"]]
-        asks = [[float(p), float(v)] for p, v in book["asks"]]
+        # Kraken возвращает [price, volume, timestamp]. Берем только первые два
+        bids = [[float(item[0]), float(item[1])] for item in book["bids"]]
+        asks = [[float(item[0]), float(item[1])] for item in book["asks"]]
         
+        if not bids or not asks:
+            return web.json_response({"error": "Стакан пуст"}, status=404)
+
         mid_price = (bids[0][0] + asks[0][0]) / 2
         
-        # Считаем объем в пределах 2% от текущей цены
         buy_volume, sell_volume = 0, 0
         for p, v in bids:
             if p >= mid_price * 0.98: buy_volume += v
@@ -194,11 +201,9 @@ async def handle_orderbook(request):
         buy_percent = int((buy_volume / total_vol) * 100) if total_vol > 0 else 50
         sell_percent = 100 - buy_percent
         
-        # Ищем самые крупные заявки (стены)
         largest_bid = max(bids, key=lambda x: x[1]) if bids else [0, 0]
         largest_ask = max(asks, key=lambda x: x[1]) if asks else [0, 0]
         
-        # Имитация Открытого интереса (т.к. Kraken Spot его не отдает)
         oi_change = round(random.uniform(-15.0, 15.0), 1)
         
         return web.json_response({
@@ -211,7 +216,9 @@ async def handle_orderbook(request):
             "largest_ask_vol": largest_ask[1],
             "oi_change": oi_change
         })
-    except Exception as e: return web.json_response({"error": str(e)}, status=500)
+    except Exception as e: 
+        print(f"Orderbook error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
 
 # --- API УВЕДОМЛЕНИЙ ---
 async def handle_get_alerts(request):
@@ -253,7 +260,7 @@ async def start_web_server():
     app.router.add_get('/api/candles', handle_candles)
     app.router.add_get('/api/volume_profile', handle_volume_profile)
     app.router.add_get('/api/analyze', handle_analyze)
-    app.router.add_get('/api/orderbook', handle_orderbook) # <-- НОВЫЙ МАРШРУТ
+    app.router.add_get('/api/orderbook', handle_orderbook)
     app.router.add_get('/api/alerts', handle_get_alerts)
     app.router.add_post('/api/alerts', handle_create_alert)
     app.router.add_delete('/api/alerts', handle_delete_alert)
@@ -263,6 +270,7 @@ async def start_web_server():
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
+    print(f"Сервер на порту {port}")
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):

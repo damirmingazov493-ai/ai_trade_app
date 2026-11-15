@@ -115,7 +115,6 @@
                 <span class="text-purple-500 font-bold" id="ob-accumulation">Накопление</span>
             </div>
 
-            <!-- Прогресс-бар перевеса -->
             <div class="mb-2 flex justify-between text-xs font-bold">
                 <span class="text-emerald-500" id="ob-buy-percent">Покупка 0%</span>
                 <span class="text-rose-500" id="ob-sell-percent">Продажа 0%</span>
@@ -124,7 +123,6 @@
                 <div id="ob-buy-bar" class="h-full bg-emerald-500 transition-all duration-500" style="width: 50%"></div>
             </div>
 
-            <!-- Крупные заявки -->
             <div class="space-y-3">
                 <div class="bg-white/60 p-3 rounded-xl border border-white flex justify-between items-center shadow-sm">
                     <div class="flex items-center space-x-2"><span class="text-emerald-500 text-lg">🟢</span><span class="text-xs text-slate-500 font-medium">Крупная покупка</span></div>
@@ -289,14 +287,22 @@
             finally { btn.innerText = "🧠 Запустить анализ"; btn.classList.remove('opacity-70'); }
         }
 
-        // --- АНАЛИЗ СТАКАНА (ORDER BOOK) ---
+        // --- ИСПРАВЛЕННЫЙ АНАЛИЗ СТАКАНА ---
         async function loadOrderBook() {
             document.getElementById('ob-price').innerText = "Загрузка...";
             try {
                 const res = await fetch(`${window.location.origin}/api/orderbook?symbol=${currentSymbol}`);
+                
+                if (!res.ok) {
+                    throw new Error("Ошибка сервера");
+                }
+                
                 const data = await res.json();
                 
-                if (data.error) return;
+                if (data.error) {
+                    document.getElementById('ob-price').innerText = "Ошибка стакана";
+                    return;
+                }
 
                 let precision = data.current_price < 0.0001 ? 8 : data.current_price < 0.01 ? 6 : data.current_price < 1 ? 4 : 2;
                 
@@ -321,7 +327,10 @@
                 else if (data.sell_percent > 60) { accElem.innerText = "Продавцы давят"; accElem.className = "text-rose-500 font-bold"; }
                 else { accElem.innerText = "Равновесие"; accElem.className = "text-slate-500 font-bold"; }
 
-            } catch(e) { document.getElementById('ob-price').innerText = "Ошибка сети"; }
+            } catch(e) { 
+                document.getElementById('ob-price').innerText = "Ошибка сети";
+                console.log(e);
+            }
         }
 
         // --- УВЕДОМЛЕНИЯ ---
