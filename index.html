@@ -24,10 +24,10 @@
         #chart-container { width: 100%; height: 320px; border-radius: 20px; overflow: hidden; background-image: url('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=1000&auto=format&fit=crop'); background-size: cover; background-position: center; position: relative; box-shadow: inset 0 0 20px rgba(0,0,0,0.1); }
         #chart-container::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.15); pointer-events: none; z-index: 1; }
 
-        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border-top: 1px solid rgba(255, 255, 255, 0.5); display: flex; justify-content: space-around; padding: 12px 0 20px 0; z-index: 9999; border-radius: 30px 30px 0 0; box-shadow: 0 -4px 20px rgba(100, 80, 150, 0.08); }
-        .nav-item { display: flex; flex-direction: column; align-items: center; color: #a09ab8; font-size: 10px; font-weight: 600; transition: 0.3s; cursor: pointer;}
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border-top: 1px solid rgba(255, 255, 255, 0.5); display: flex; justify-content: space-around; padding: 10px 0 20px 0; z-index: 9999; border-radius: 30px 30px 0 0; box-shadow: 0 -4px 20px rgba(100, 80, 150, 0.08); }
+        .nav-item { display: flex; flex-direction: column; align-items: center; color: #a09ab8; font-size: 9px; font-weight: 600; transition: 0.3s; cursor: pointer;}
         .nav-item.active { color: #8b5cf6; }
-        .nav-icon { font-size: 22px; margin-bottom: 4px; }
+        .nav-icon { font-size: 20px; margin-bottom: 4px; }
         
         .tab-content { display: none; }
         .tab-content.active { display: block; animation: fadeIn 0.4s ease-out; }
@@ -101,20 +101,18 @@
         <div id="alerts-list" class="space-y-3"><div class="text-center text-slate-400 py-10">Загрузка...</div></div>
     </div>
 
-    <!-- ================= ВКЛАДКА 3: СТАКАН (ORDER BOOK) ================= -->
+    <!-- ================= ВКЛАДКА 3: СТАКАН ================= -->
     <div id="view-orderbook" class="tab-content">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-2xl font-extrabold text-slate-800">📊 Набор позиций</h1>
             <button onclick="loadOrderBook()" class="w-10 h-10 bg-white/70 rounded-full flex items-center justify-center text-lg shadow-sm text-purple-500 border border-white active:scale-95 transition">🔄</button>
         </div>
-        
         <div class="glass p-6 relative overflow-hidden">
             <h2 class="text-sm text-slate-500 font-medium mb-4">Открытый интерес <span id="ob-oi" class="text-emerald-500 font-bold ml-2">+0.0% за час</span></h2>
             <div class="text-xs text-slate-400 mb-6 flex justify-between">
                 <span>Цена сейчас: <b id="ob-price" class="text-slate-800">$0.00</b></span>
                 <span class="text-purple-500 font-bold" id="ob-accumulation">Накопление</span>
             </div>
-
             <div class="mb-2 flex justify-between text-xs font-bold">
                 <span class="text-emerald-500" id="ob-buy-percent">Покупка 0%</span>
                 <span class="text-rose-500" id="ob-sell-percent">Продажа 0%</span>
@@ -122,29 +120,37 @@
             <div class="w-full h-3 bg-rose-500 rounded-full overflow-hidden flex mb-6">
                 <div id="ob-buy-bar" class="h-full bg-emerald-500 transition-all duration-500" style="width: 50%"></div>
             </div>
-
             <div class="space-y-3">
                 <div class="bg-white/60 p-3 rounded-xl border border-white flex justify-between items-center shadow-sm">
                     <div class="flex items-center space-x-2"><span class="text-emerald-500 text-lg">🟢</span><span class="text-xs text-slate-500 font-medium">Крупная покупка</span></div>
-                    <div class="text-right">
-                        <div class="font-bold text-slate-800 text-sm" id="ob-largest-bid">$0.00</div>
-                        <div class="text-xs text-slate-400" id="ob-largest-bid-vol">0 об.</div>
-                    </div>
+                    <div class="text-right"><div class="font-bold text-slate-800 text-sm" id="ob-largest-bid">$0.00</div><div class="text-xs text-slate-400" id="ob-largest-bid-vol">0 об.</div></div>
                 </div>
                 <div class="bg-white/60 p-3 rounded-xl border border-white flex justify-between items-center shadow-sm">
                     <div class="flex items-center space-x-2"><span class="text-rose-500 text-lg">🔴</span><span class="text-xs text-slate-500 font-medium">Крупная продажа</span></div>
-                    <div class="text-right">
-                        <div class="font-bold text-slate-800 text-sm" id="ob-largest-ask">$0.00</div>
-                        <div class="text-xs text-slate-400" id="ob-largest-ask-vol">0 об.</div>
-                    </div>
+                    <div class="text-right"><div class="font-bold text-slate-800 text-sm" id="ob-largest-ask">$0.00</div><div class="text-xs text-slate-400" id="ob-largest-ask-vol">0 об.</div></div>
                 </div>
             </div>
-            
-            <p class="text-[10px] text-slate-400 mt-6 leading-tight">Анализ стакана показывает, где сосредоточены крупные заявки. Если перевес на покупку — цена может пойти вверх (снимать продавцов).</p>
         </div>
     </div>
 
-    <!-- ================= ВКЛАДКА 4: ИНСТРУМЕНТЫ ================= -->
+    <!-- ================= ВКЛАДКА 4: СКРИНЕР БОКОВИКОВ ================= -->
+    <div id="view-screener" class="tab-content">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-extrabold text-slate-800">⚡ Скринер</h1>
+            <button onclick="loadScreener()" class="w-10 h-10 bg-white/70 rounded-full flex items-center justify-center text-lg shadow-sm text-purple-500 border border-white active:scale-95 transition">🔄</button>
+        </div>
+        
+        <div class="glass p-6">
+            <h2 class="text-sm text-slate-500 font-medium mb-4">Монеты в узком диапазоне (боковик)</h2>
+            <p class="text-xs text-slate-400 mb-4">Бот пришлет уведомление, когда цена пробьет границы этой зоны.</p>
+            
+            <div id="screener-list" class="space-y-3">
+                <div class="text-center text-slate-400 py-10">Загрузка...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= ВКЛАДКА 5: ИНСТРУМЕНТЫ ================= -->
     <div id="view-tools" class="tab-content">
         <h1 class="text-2xl font-extrabold text-slate-800 mb-6">🛠 Анализ</h1>
         <div class="glass p-6 mb-4">
@@ -166,10 +172,13 @@
             <span class="nav-icon">📈</span><span>Терминал</span>
         </div>
         <div class="nav-item" onclick="switchTab('alerts', this)">
-            <span class="nav-icon">🔔</span><span>Оповещения</span>
+            <span class="nav-icon">🔔</span><span>Оповещ.</span>
         </div>
         <div class="nav-item" onclick="switchTab('orderbook', this)">
             <span class="nav-icon">📊</span><span>Стакан</span>
+        </div>
+        <div class="nav-item" onclick="switchTab('screener', this)">
+            <span class="nav-icon">⚡</span><span>Скринер</span>
         </div>
         <div class="nav-item" onclick="switchTab('tools', this)">
             <span class="nav-icon">🛠</span><span>Анализ</span>
@@ -190,6 +199,7 @@
             if (tabId === 'alerts') loadAlerts();
             if (tabId === 'tools') loadToolsData();
             if (tabId === 'orderbook') loadOrderBook();
+            if (tabId === 'screener') loadScreener(); // <-- Загрузка скринера
         }
 
         // --- ГРАФИК ---
@@ -287,22 +297,52 @@
             finally { btn.innerText = "🧠 Запустить анализ"; btn.classList.remove('opacity-70'); }
         }
 
-        // --- АНАЛИЗ СТАКАНА (ORDER BOOK) ---
+        // --- СКРИНЕР БОКОВИКОВ ---
+        async function loadScreener() {
+            const list = document.getElementById('screener-list');
+            list.innerHTML = `<div class="text-center text-slate-400 py-10 animate-pulse">Сканируем рынок...</div>`;
+            
+            try {
+                const res = await fetch(`${window.location.origin}/api/screener`);
+                const data = await res.json();
+                
+                if (data.length === 0) {
+                    list.innerHTML = `<div class="text-center text-slate-400 py-10">Сейчас нет монет в узком боковике.</div>`;
+                    return;
+                }
+
+                list.innerHTML = data.map(coin => {
+                    const rangeColor = coin.range_pct < 1.5 ? 'text-emerald-500' : 'text-yellow-500';
+                    return `
+                    <div onclick="goToTerminal('${coin.symbol}')" class="bg-white/60 p-4 rounded-xl border border-white flex justify-between items-center shadow-sm cursor-pointer active:scale-95 transition">
+                        <div>
+                            <div class="font-bold text-lg text-slate-800">${coin.symbol}</div>
+                            <div class="text-xs text-slate-500">Цена: $${coin.price.toLocaleString()}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xs text-slate-500 mb-1">Размах:</div>
+                            <div class="font-bold ${rangeColor}">${coin.range_pct.toFixed(2)}%</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch(e) { list.innerHTML = "Ошибка загрузки"; }
+        }
+
+        function goToTerminal(symbol) {
+            changeCoin(symbol, null);
+            switchTab('terminal', document.querySelectorAll('.nav-item')[0]);
+        }
+
+        // --- СТАКАН ---
         async function loadOrderBook() {
             document.getElementById('ob-price').innerText = "Загрузка...";
             try {
                 const res = await fetch(`${window.location.origin}/api/orderbook?symbol=${currentSymbol}`);
-                
                 if (!res.ok) throw new Error("Ошибка сервера");
                 const data = await res.json();
-                
-                if (data.error) {
-                    document.getElementById('ob-price').innerText = "Ошибка стакана";
-                    return;
-                }
+                if (data.error) { document.getElementById('ob-price').innerText = "Ошибка стакана"; return; }
 
                 let precision = data.current_price < 0.0001 ? 8 : data.current_price < 0.01 ? 6 : data.current_price < 1 ? 4 : 2;
-                
                 document.getElementById('ob-price').innerText = `$${data.current_price.toFixed(precision)}`;
                 
                 const oiElem = document.getElementById('ob-oi');
@@ -315,7 +355,6 @@
                 
                 document.getElementById('ob-largest-bid').innerText = `$${data.largest_bid_price.toFixed(precision)}`;
                 document.getElementById('ob-largest-bid-vol').innerText = `${data.largest_bid_vol.toFixed(2)} об.`;
-                
                 document.getElementById('ob-largest-ask').innerText = `$${data.largest_ask_price.toFixed(precision)}`;
                 document.getElementById('ob-largest-ask-vol').innerText = `${data.largest_ask_vol.toFixed(2)} об.`;
                 
@@ -323,11 +362,7 @@
                 if (data.buy_percent > 60) { accElem.innerText = "Покупатели давят"; accElem.className = "text-emerald-500 font-bold"; }
                 else if (data.sell_percent > 60) { accElem.innerText = "Продавцы давят"; accElem.className = "text-rose-500 font-bold"; }
                 else { accElem.innerText = "Равновесие"; accElem.className = "text-slate-500 font-bold"; }
-
-            } catch(e) { 
-                document.getElementById('ob-price').innerText = "Ошибка сети";
-                console.log(e);
-            }
+            } catch(e) { document.getElementById('ob-price').innerText = "Ошибка сети"; }
         }
 
         // --- УВЕДОМЛЕНИЯ ---
@@ -354,7 +389,7 @@
             try {
                 const res = await fetch(`${window.location.origin}/api/alerts?user_id=${userId}`);
                 const alerts = await res.json();
-                if (alerts.length === 0) { list.innerHTML = `<div class="text-center text-slate-400 py-10">У вас пока нет активных уведомлений</div>`; return; }
+                if (alerts.length === 0) { list.innerHTML = `<div class="text-center text-slate-400 py-10">Нет активных уведомлений</div>`; return; }
                 list.innerHTML = alerts.map(a => `
                     <div class="glass p-4 flex justify-between items-center mb-3">
                         <div><div class="font-bold text-lg text-slate-800">${a.symbol}</div><div class="text-sm font-medium text-slate-500">${a.condition === 'above' ? '📈 Выше' : '📉 Ниже'} $${a.target_price}</div></div>

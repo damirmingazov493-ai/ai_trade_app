@@ -14,16 +14,15 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+ADMIN_ID = int(os.getenv("ADMIN_ID", 0)) # Твой Telegram ID для уведомлений
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    print("✅ База данных Supabase подключена")
 except Exception as e:
     supabase = None
-    print(f"❌ Ошибка БД: {e}")
 
 KRAKEN_PAIRS = {
     "BTC": "XBTUSD", "ETH": "ETHUSD", "SOL": "SOLUSD", "XRP": "XRPUSD",
@@ -32,6 +31,12 @@ KRAKEN_PAIRS = {
     "ATOM": "ATOMUSD", "UNI": "UNIUSD", "TON": "TONUSD", "TRX": "TRXUSD",
     "NEAR": "NEARUSD", "SHIB": "SHIBUSD", "PEPE": "PEPEUSD", "FIL": "FILUSD"
 }
+
+# Монеты, которые будем сканировать на боковик
+SCAN_SYMBOLS = ["BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "AVAX", "LINK", "DOT", "MATIC"]
+
+# Хранилище текущего состояния консолидаций
+consolidation_state = {} 
 
 def format_price(price):
     if price < 0.0001: return f"{price:.8f}"
@@ -55,9 +60,79 @@ def calculate_sma(prices, period=20):
     if len(prices) < period: return prices[-1] if prices else 0
     return sum(prices[-period:]) / period
 
+# --- СКАНЕР БОКОВИКОВ ---
+async def scan_consolidations():
+    print("🚀 Скринер боковиков запущен...")
+    while True:
+        for symbol in SCAN_SYMBOLS:
+            pair = KRAKEN_PAIRS.get(symbol)
+            if not pair: continue
+            
+            try:
+                async with aiohttp.ClientSession() as session:
+                    # Берем 30 часовых свечей
+                    url = f"https://api.kraken.com/0/public/OHLC?pair={pair}&interval=60"
+                    async with session.get(url) as response:
+                        data = await response.json()
+                        if data.get("error"): continue
+                        
+                        result_key = [k for k in data["result"].keys() if k != "last"][0]
+                        candles = data["result"][result_key]
+                        
+                        if len(candles) < 25: continue
+                        
+                        # Берем последние 20 свечей для анализа
+                        recent_candles = candles[-20:]
+                        highs = [float(c[2]) for c in recent_candles]
+                        lows = [float(c[3]) for c in recent_candles]
+                        
+                        max_high = max(highs)
+                        min_low = min(lows)
+                        current_price = float(candles[-1][4])
+                        
+                        # Разница между макс и мин в %
+                        range_pct = ((max_high - min_low) / min_low) * 100
+                        
+                        # Если диапазон меньше 3% — это боковик
+                        is_flat = range_pct < 3.0
+                        
+                        # Логика пробоя
+                        prev_state = consolidation_state.get(symbol, {"is_flat": False, "max_high": 0, "min_low": 0})
+                        
+                        if is_flat:
+                            # Монета вошла или находится в боковике
+                            consolidation_state[symbol] = {
+                                "is_flat": True, 
+                                "max_high": max_high, 
+                                "min_low": min_low,
+                                "price": current_price
+                            }
+                        else:
+                            # Монета не в боковике. Проверяем, не было ли пробоя
+                            if prev_state["is_flat"]:
+                                # БЫЛ боковик, а теперь нет -> ПРОБОЙ!
+                                direction = "ВВЕРХ 🚀" if current_price > prev_state["max_high"] else "ВНИЗ 📉"
+                                if ADMIN_ID:
+                                    msg = (f"⚡️ <b>ПРОБОЙ БОКОВИКА!</b>\n\n"
+                                           f"Монета: <b>{symbol}</b>\n"
+                                           f"Направление: <b>{direction}</b>\n"
+                                           f"Цена: {format_price(current_price)}\n"
+                                           f"Границы были: {format_price(prev_state['min_low'])} - {format_price(prev_state['max_high'])}")
+                                    try: await bot.send_message(ADMIN_ID, msg, parse_mode="HTML")
+                                    except: pass
+                            
+                            # Сбрасываем состояние
+                            consolidation_state[symbol] = {"is_flat": False}
+                            
+            except Exception as e:
+                print(f"Ошибка сканирования {symbol}: {e}")
+            
+            await asyncio.sleep(1) # Пауза между запросами к Kraken (чтобы не забанили)
+            
+        await asyncio.sleep(900) # Ждем 15 минут перед новым сканированием
+
 # --- ФОНОВЫЙ СКАНЕР УВЕДОМЛЕНИЙ ---
 async def check_alerts():
-    print("🚀 Сканер уведомлений запущен...")
     while True:
         if supabase:
             try:
@@ -78,25 +153,38 @@ async def check_alerts():
                                             (condition == 'below' and last_price > target and current_price <= target)
                                             
                                 if triggered:
-                                    text = f"🔔 <b>ЦЕНА ДОСТИГЛА ЦЕЛИ!</b>\n\nМонета: <b>{sym}</b>\nЦена: <b>${format_price(current_price)}</b>\nЦель: {condition} ${format_price(target)}"
+                                    text = f"🔔 <b>ЦЕНА ДОСТИГЛА ЦЕЛИ!</b>\n\nМонета: <b>{sym}</b>\nЦена: <b>${format_price(current_price)}</b>"
                                     await bot.send_message(chat_id=alert['user_id'], text=text, parse_mode="HTML")
                                     supabase.table("alerts").update({"is_active": False}).eq("id", alert['id']).execute()
                                 else:
                                     supabase.table("alerts").update({"last_price": current_price}).eq("id", alert['id']).execute()
-            except Exception as e: print(f"Alert error: {e}")
+            except Exception as e: pass
         await asyncio.sleep(30)
 
 # --- ВЕБ-СЕРВЕР ---
 async def handle_index(request):
     return web.FileResponse('./index.html')
 
+# API: Получить список монет в боковике
+async def handle_get_consolidations(request):
+    result = []
+    for sym, state in consolidation_state.items():
+        if state.get("is_flat"):
+            result.append({
+                "symbol": sym,
+                "price": state["price"],
+                "max_high": state["max_high"],
+                "min_low": state["min_low"],
+                "range_pct": ((state["max_high"] - state["min_low"]) / state["min_low"]) * 100
+            })
+    return web.json_response(result)
+
 async def handle_candles(request):
     interval, symbol = request.query.get('interval', '60'), request.query.get('symbol', 'BTC').upper()
     pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
     try:
         async with aiohttp.ClientSession() as session:
-            url = f"https://api.kraken.com/0/public/OHLC?pair={pair}&interval={interval}"
-            async with session.get(url) as response:
+            async with session.get(f"https://api.kraken.com/0/public/OHLC?pair={pair}&interval={interval}") as response:
                 json_data = await response.json()
                 if json_data.get("error"): return web.json_response({"error": "Нет данных"}, status=404)
                 result_key = [k for k in json_data["result"].keys() if k != "last"][0]
@@ -109,8 +197,7 @@ async def handle_volume_profile(request):
     pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
     try:
         async with aiohttp.ClientSession() as session:
-            url = f"https://api.kraken.com/0/public/OHLC?pair={pair}&interval={interval}"
-            async with session.get(url) as response:
+            async with session.get(f"https://api.kraken.com/0/public/OHLC?pair={pair}&interval={interval}") as response:
                 json_data = await response.json()
                 if json_data.get("error"): return web.json_response({"error": "Нет данных"}, status=404)
         result_key = [k for k in json_data["result"].keys() if k != "last"][0]
@@ -167,76 +254,53 @@ async def handle_analyze(request):
         return web.json_response({"analysis": analysis_html, "trend": trend, "targets": targets, "color": color})
     except Exception as e: return web.json_response({"error": str(e)}, status=500)
 
-# --- API ДЛЯ СТАКАНА (KRAKEN + BINANCE OI) ---
 async def handle_orderbook(request):
     symbol = request.query.get('symbol', 'BTC').upper()
     pair = KRAKEN_PAIRS.get(symbol, f"{symbol}USD")
-    binance_symbol = f"{symbol}USDT" # Для фьючерсов Binance
-    
+    binance_symbol = f"{symbol}USDT"
     try:
-        # 1. Стакан с Kraken
         async with aiohttp.ClientSession() as session:
-            url_kraken = f"https://api.kraken.com/0/public/Depth?pair={pair}&count=100"
-            async with session.get(url_kraken) as response:
+            async with session.get(f"https://api.kraken.com/0/public/Depth?pair={pair}&count=100") as response:
                 json_data = await response.json()
-                if json_data.get("error"): 
-                    return web.json_response({"error": "Нет данных стакана"}, status=404)
-
+                if json_data.get("error"): return web.json_response({"error": "Нет данных"}, status=404)
         result_key = [k for k in json_data["result"].keys() if k != "last"][0]
         book = json_data["result"][result_key]
-        
         bids = [[float(item[0]), float(item[1])] for item in book["bids"]]
         asks = [[float(item[0]), float(item[1])] for item in book["asks"]]
-        
-        if not bids or not asks:
-            return web.json_response({"error": "Стакан пуст"}, status=404)
-
+        if not bids or not asks: return web.json_response({"error": "Стакан пуст"}, status=404)
         mid_price = (bids[0][0] + asks[0][0]) / 2
-        
-        buy_volume, sell_volume = 0, 0
+        buy_vol, sell_vol = 0, 0
         for p, v in bids:
-            if p >= mid_price * 0.98: buy_volume += v
+            if p >= mid_price * 0.98: buy_vol += v
         for p, v in asks:
-            if p <= mid_price * 1.02: sell_volume += v
-            
-        total_vol = buy_volume + sell_volume
-        buy_percent = int((buy_volume / total_vol) * 100) if total_vol > 0 else 50
-        sell_percent = 100 - buy_percent
-        
+            if p <= mid_price * 1.02: sell_vol += v
+        total = buy_vol + sell_vol
+        buy_pct = int((buy_vol / total) * 100) if total > 0 else 50
+        sell_pct = 100 - buy_pct
         largest_bid = max(bids, key=lambda x: x[1]) if bids else [0, 0]
         largest_ask = max(asks, key=lambda x: x[1]) if asks else [0, 0]
         
-        # 2. Реальный Открытый интерес с Binance Futures
         oi_change = 0.0
         try:
             async with aiohttp.ClientSession() as session:
-                url_binance = f"https://fapi.binance.com/futures/data/openInterestHist?symbol={binance_symbol}&period=1h&limit=2"
-                async with session.get(url_binance) as oi_response:
-                    if oi_response.status == 200:
-                        oi_data = await oi_response.json()
-                        if len(oi_data) == 2:
-                            oi_old = float(oi_data[0]["sumOpenInterest"])
-                            oi_new = float(oi_data[1]["sumOpenInterest"])
+                async with session.get(f"https://api.bybit.com/v5/market/open-interest?category=linear&symbol={binance_symbol}&intervalTime=1h&limit=2") as oi_res:
+                    if oi_res.status == 200:
+                        oi_data = await oi_res.json()
+                        if oi_data.get("retCode") == 0 and len(oi_data["result"]["list"]) >= 2:
+                            oi_list = oi_data["result"]["list"]
+                            oi_new = float(oi_list[0]["openInterest"])
+                            oi_old = float(oi_list[1]["openInterest"])
                             oi_change = round(((oi_new - oi_old) / oi_old) * 100, 1)
-        except Exception as e:
-            print(f"Ошибка получения OI с Binance: {e}")
-            oi_change = 0.0
+        except: pass
         
         return web.json_response({
-            "current_price": mid_price,
-            "buy_percent": buy_percent,
-            "sell_percent": sell_percent,
-            "largest_bid_price": largest_bid[0],
-            "largest_bid_vol": largest_bid[1],
-            "largest_ask_price": largest_ask[0],
-            "largest_ask_vol": largest_ask[1],
+            "current_price": mid_price, "buy_percent": buy_pct, "sell_percent": sell_pct,
+            "largest_bid_price": largest_bid[0], "largest_bid_vol": largest_bid[1],
+            "largest_ask_price": largest_ask[0], "largest_ask_vol": largest_ask[1],
             "oi_change": oi_change
         })
-    except Exception as e: 
-        print(f"Orderbook error: {e}")
-        return web.json_response({"error": str(e)}, status=500)
+    except Exception as e: return web.json_response({"error": str(e)}, status=500)
 
-# --- API УВЕДОМЛЕНИЙ ---
 async def handle_get_alerts(request):
     user_id = request.query.get('user_id')
     if not user_id or not supabase: return web.json_response([])
@@ -280,23 +344,24 @@ async def start_web_server():
     app.router.add_get('/api/alerts', handle_get_alerts)
     app.router.add_post('/api/alerts', handle_create_alert)
     app.router.add_delete('/api/alerts', handle_delete_alert)
+    app.router.add_get('/api/screener', handle_get_consolidations) # <-- НОВЫЙ МАРШРУТ
     
     port = int(os.environ.get('PORT', 8080))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    print(f"Сервер на порту {port}")
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     web_app_url = f"{os.getenv('WEBAPP_URL', 'https://google.com')}?v={int(time.time())}"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🚀 Открыть Терминал", web_app=WebAppInfo(url=web_app_url))]])
-    await message.answer("Приложение обновлено! Реальный Открытый интерес (OI).", reply_markup=keyboard)
+    await message.answer("Приложение обновлено! Добавлен Скринер Боковиков.", reply_markup=keyboard)
 
 async def main():
     await start_web_server()
     asyncio.create_task(check_alerts())
+    asyncio.create_task(scan_consolidations()) # <-- ЗАПУСК СКРИНЕРА
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
