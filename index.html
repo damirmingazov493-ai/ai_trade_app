@@ -36,7 +36,6 @@
 </head>
 <body class="p-5">
 
-    <!-- ================= ВКЛАДКА 1: ТЕРМИНАЛ ================= -->
     <div id="view-terminal" class="tab-content active">
         <div class="flex justify-between items-center mb-6">
             <div>
@@ -80,7 +79,6 @@
         </div>
     </div>
 
-    <!-- ================= ВКЛАДКА 2: ОПОВЕЩЕНИЯ ================= -->
     <div id="view-alerts" class="tab-content">
         <h1 class="text-2xl font-extrabold text-slate-800 mb-6">🔔 Оповещения</h1>
         <div class="glass p-6 mb-6">
@@ -101,7 +99,6 @@
         <div id="alerts-list" class="space-y-3"><div class="text-center text-slate-400 py-10">Загрузка...</div></div>
     </div>
 
-    <!-- ================= ВКЛАДКА 3: СТАКАН ================= -->
     <div id="view-orderbook" class="tab-content">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-2xl font-extrabold text-slate-800">📊 Набор позиций</h1>
@@ -133,7 +130,6 @@
         </div>
     </div>
 
-    <!-- ================= ВКЛАДКА 4: СКРИНЕР БОКОВИКОВ ================= -->
     <div id="view-screener" class="tab-content">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-2xl font-extrabold text-slate-800">⚡ Скринер</h1>
@@ -150,7 +146,6 @@
         </div>
     </div>
 
-    <!-- ================= ВКЛАДКА 5: ИНСТРУМЕНТЫ ================= -->
     <div id="view-tools" class="tab-content">
         <h1 class="text-2xl font-extrabold text-slate-800 mb-6">🛠 Анализ</h1>
         <div class="glass p-6 mb-4">
@@ -166,7 +161,6 @@
         </div>
     </div>
 
-    <!-- НИЖНЯЯ НАВИГАЦИЯ -->
     <div class="bottom-nav">
         <div class="nav-item active" onclick="switchTab('terminal', this)">
             <span class="nav-icon">📈</span><span>Терминал</span>
@@ -199,10 +193,9 @@
             if (tabId === 'alerts') loadAlerts();
             if (tabId === 'tools') loadToolsData();
             if (tabId === 'orderbook') loadOrderBook();
-            if (tabId === 'screener') loadScreener(); // <-- Загрузка скринера
+            if (tabId === 'screener') loadScreener();
         }
 
-        // --- ГРАФИК ---
         const chartContainer = document.getElementById('chart-container');
         const chart = LightweightCharts.createChart(chartContainer, {
             width: chartContainer.clientWidth, height: 320,
@@ -297,7 +290,6 @@
             finally { btn.innerText = "🧠 Запустить анализ"; btn.classList.remove('opacity-70'); }
         }
 
-        // --- СКРИНЕР БОКОВИКОВ ---
         async function loadScreener() {
             const list = document.getElementById('screener-list');
             list.innerHTML = `<div class="text-center text-slate-400 py-10 animate-pulse">Сканируем рынок...</div>`;
@@ -312,9 +304,9 @@
                 }
 
                 list.innerHTML = data.map(coin => {
-                    const rangeColor = coin.range_pct < 1.5 ? 'text-emerald-500' : 'text-yellow-500';
+                    const rangeColor = coin.range_pct < 2.0 ? 'text-emerald-500' : 'text-yellow-500';
                     return `
-                    <div onclick="goToTerminal('${coin.symbol}')" class="bg-white/60 p-4 rounded-xl border border-white flex justify-between items-center shadow-sm cursor-pointer active:scale-95 transition">
+                    <div onclick="goToTerminal('${coin.symbol}')" class="bg-white/60 p-4 rounded-xl border border-white flex justify-between items-center shadow-sm cursor-pointer active:scale-95 transition mb-2">
                         <div>
                             <div class="font-bold text-lg text-slate-800">${coin.symbol}</div>
                             <div class="text-xs text-slate-500">Цена: $${coin.price.toLocaleString()}</div>
@@ -333,7 +325,6 @@
             switchTab('terminal', document.querySelectorAll('.nav-item')[0]);
         }
 
-        // --- СТАКАН ---
         async function loadOrderBook() {
             document.getElementById('ob-price').innerText = "Загрузка...";
             try {
@@ -365,7 +356,6 @@
             } catch(e) { document.getElementById('ob-price').innerText = "Ошибка сети"; }
         }
 
-        // --- УВЕДОМЛЕНИЯ ---
         function goToCreateAlert() {
             document.getElementById('alert-symbol').value = currentSymbol;
             switchTab('alerts', document.querySelectorAll('.nav-item')[1]);
@@ -399,7 +389,6 @@
         }
         async function deleteAlert(id) { await fetch(`${window.location.origin}/api/alerts?id=${id}`, { method: 'DELETE' }); loadAlerts(); }
 
-        // --- ИНСТРУМЕНТЫ ---
         async function loadToolsData() {
             document.getElementById('tools-symbol').innerText = currentSymbol;
             try {

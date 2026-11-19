@@ -32,9 +32,6 @@ KRAKEN_PAIRS = {
     "NEAR": "NEARUSD", "SHIB": "SHIBUSD", "PEPE": "PEPEUSD", "FIL": "FILUSD"
 }
 
-# Монеты, которые будем сканировать на боковик
-SCAN_SYMBOLS = ["BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "AVAX", "LINK", "DOT", "MATIC"]
-
 # Хранилище текущего состояния консолидаций
 consolidation_state = {} 
 
@@ -63,8 +60,13 @@ def calculate_sma(prices, period=20):
 # --- СКАНЕР БОКОВИКОВ ---
 async def scan_consolidations():
     print("🚀 Скринер боковиков запущен...")
+    
+    # Исключаем PEPE и SHIB, так как у них могут быть проблемы с точностью
+    scan_symbols = [sym for sym in KRAKEN_PAIRS.keys() if sym not in ["PEPE", "SHIB"]]
+    
     while True:
-        for symbol in SCAN_SYMBOLS:
+        found_count = 0
+        for symbol in scan_symbols:
             pair = KRAKEN_PAIRS.get(symbol)
             if not pair: continue
             
@@ -81,8 +83,10 @@ async def scan_consolidations():
                         
                         if len(candles) < 25: continue
                         
-                        # Берем последние 20 свечей для анализа
-                        recent_candles = candles[-20:]
+                        # Берем 20 ЗАКРЫТЫХ свечей (исключаем текущую, которая еще формируется)
+                        closed_candles = candles[:-1]
+                        recent_candles = closed_candles[-20:]
+                        
                         highs = [float(c[2]) for c in recent_candles]
                         lows = [float(c[3]) for c in recent_candles]
                         
@@ -93,24 +97,23 @@ async def scan_consolidations():
                         # Разница между макс и мин в %
                         range_pct = ((max_high - min_low) / min_low) * 100
                         
-                        # Если диапазон меньше 3% — это боковик
-                        is_flat = range_pct < 3.0
+                        # Если размах меньше 5% за 20 часов — это боковик
+                        is_flat = range_pct < 5.0
                         
-                        # Логика пробоя
                         prev_state = consolidation_state.get(symbol, {"is_flat": False, "max_high": 0, "min_low": 0})
                         
                         if is_flat:
-                            # Монета вошла или находится в боковике
+                            found_count += 1
                             consolidation_state[symbol] = {
                                 "is_flat": True, 
                                 "max_high": max_high, 
                                 "min_low": min_low,
-                                "price": current_price
+                                "price": current_price,
+                                "range_pct": range_pct
                             }
                         else:
-                            # Монета не в боковике. Проверяем, не было ли пробоя
+                            # Логика пробоя
                             if prev_state["is_flat"]:
-                                # БЫЛ боковик, а теперь нет -> ПРОБОЙ!
                                 direction = "ВВЕРХ 🚀" if current_price > prev_state["max_high"] else "ВНИЗ 📉"
                                 if ADMIN_ID:
                                     msg = (f"⚡️ <b>ПРОБОЙ БОКОВИКА!</b>\n\n"
@@ -121,14 +124,14 @@ async def scan_consolidations():
                                     try: await bot.send_message(ADMIN_ID, msg, parse_mode="HTML")
                                     except: pass
                             
-                            # Сбрасываем состояние
                             consolidation_state[symbol] = {"is_flat": False}
                             
             except Exception as e:
                 print(f"Ошибка сканирования {symbol}: {e}")
             
-            await asyncio.sleep(1) # Пауза между запросами к Kraken (чтобы не забанили)
+            await asyncio.sleep(1) # Пауза между запросами (чтобы Kraken не забанил)
             
+        print(f"✅ Сканирование завершено. Найдено в боковике: {found_count}")
         await asyncio.sleep(900) # Ждем 15 минут перед новым сканированием
 
 # --- ФОНОВЫЙ СКАНЕР УВЕДОМЛЕНИЙ ---
@@ -165,7 +168,6 @@ async def check_alerts():
 async def handle_index(request):
     return web.FileResponse('./index.html')
 
-# API: Получить список монет в боковике
 async def handle_get_consolidations(request):
     result = []
     for sym, state in consolidation_state.items():
@@ -175,8 +177,10 @@ async def handle_get_consolidations(request):
                 "price": state["price"],
                 "max_high": state["max_high"],
                 "min_low": state["min_low"],
-                "range_pct": ((state["max_high"] - state["min_low"]) / state["min_low"]) * 100
+                "range_pct": state["range_pct"]
             })
+    # Сортируем по самому узкому диапазону
+    result.sort(key=lambda x: x["range_pct"])
     return web.json_response(result)
 
 async def handle_candles(request):
@@ -344,7 +348,7 @@ async def start_web_server():
     app.router.add_get('/api/alerts', handle_get_alerts)
     app.router.add_post('/api/alerts', handle_create_alert)
     app.router.add_delete('/api/alerts', handle_delete_alert)
-    app.router.add_get('/api/screener', handle_get_consolidations) # <-- НОВЫЙ МАРШРУТ
+    app.router.add_get('/api/screener', handle_get_consolidations)
     
     port = int(os.environ.get('PORT', 8080))
     runner = web.AppRunner(app)
@@ -356,12 +360,12 @@ async def start_web_server():
 async def cmd_start(message: types.Message):
     web_app_url = f"{os.getenv('WEBAPP_URL', 'https://google.com')}?v={int(time.time())}"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🚀 Открыть Терминал", web_app=WebAppInfo(url=web_app_url))]])
-    await message.answer("Приложение обновлено! Добавлен Скринер Боковиков.", reply_markup=keyboard)
+    await message.answer("Приложение обновлено! Скринер теперь сканирует 18 монет.", reply_markup=keyboard)
 
 async def main():
     await start_web_server()
     asyncio.create_task(check_alerts())
-    asyncio.create_task(scan_consolidations()) # <-- ЗАПУСК СКРИНЕРА
+    asyncio.create_task(scan_consolidations())
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
